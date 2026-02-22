@@ -1,0 +1,42 @@
+@import './theme.css';
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-primary: var(--color-cyan-600);
+    --color-primary-content: var(--color-cyan-600);
+    --color-primary-fg: var(--color-white);
+
+    --radius-field: 0.25rem;
+    --radius-box: 0.5rem;
+
+     --color-neutral-50: var(--color-gray-50);
+    --color-neutral-100: var(--color-gray-100);
+    --color-neutral-200: var(--color-gray-200);
+    --color-neutral-300: var(--color-gray-300);
+    --color-neutral-400: var(--color-gray-400);
+    --color-neutral-500: var(--color-gray-500);
+    --color-neutral-600: var(--color-gray-600);
+    --color-neutral-700: var(--color-gray-700);
+    --color-neutral-800: var(--color-gray-800);
+    --color-neutral-900: var(--color-gray-900);
+    --color-neutral-950: var(--color-gray-950);
+}
+
+
+@layer theme {
+    .dark {
+        --color-primary: var(--color-cyan-600) !important ;
+        --color-primary-content: var(--color-cyan-600) !important;
+        --color-primary-fg:  var(--color-white) !important;
+    }
+}
+
+ @custom-variant dark (&:where(.dark, .dark *));

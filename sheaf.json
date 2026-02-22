@@ -1,0 +1,83 @@
+{
+    "components": {
+        "theme-switcher": {
+            "installationTime": 1757154860
+        },
+        "dropdown": {
+            "installationTime": 1757085344
+        },
+        "icon": {
+            "installationTime": 1771678500
+        },
+        "button": {
+            "installationTime": 1771678706
+        },
+        "toast": {
+            "installationTime": 1757085395
+        },
+        "link": {
+            "installationTime": 1757152185
+        },
+        "separator": {
+            "installationTime": 1757154458
+        },
+        "input": {
+            "installationTime": 1757157564
+        },
+        "field": {
+            "installationTime": 1757157565
+        },
+        "error": {
+            "installationTime": 1757157565
+        },
+        "label": {
+            "installationTime": 1757157565
+        },
+        "fieldset": {
+            "installationTime": 1757157751
+        },
+        "avatar": {
+            "installationTime": 1757174591
+        },
+        "text": {
+            "installationTime": 1771678505
+        },
+        "heading": {
+            "installationTime": 1757190652
+        },
+        "card": {
+            "installationTime": 1757196280
+        },
+        "select": {
+            "installationTime": 1771678465
+        },
+        "popup": {
+            "installationTime": 1771678465
+        },
+        "modal": {
+            "installationTime": 1771678654
+        },
+        "sidebar": {
+            "installationTime": 1771678695
+        },
+        "navlist": {
+            "installationTime": 1771678760
+        },
+        "badge": {
+            "installationTime": 1771678708
+        },
+        "alerts": {
+            "installationTime": 1771679306
+        },
+        "textarea": {
+            "installationTime": 1771679341
+        },
+        "switch": {
+            "installationTime": 1771679437
+        },
+        "tabs": {
+            "installationTime": 1771679473
+        }
+    },
+    "project_hash": "8bd8a2bc-fc7d-4561-a8cc-3ee6a9a19807"
+}

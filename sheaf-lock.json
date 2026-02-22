@@ -1,0 +1,49 @@
+{
+    "files": {
+        "resources/js/globals/modals.js": [
+            "modal"
+        ],
+        "resources/js/utils.js": [
+            "modal"
+        ],
+        "resources/views/components/ui/tab/index.blade.php": [
+            "tabs"
+        ],
+        "resources/views/components/ui/tab/group.blade.php": [
+            "tabs"
+        ],
+        "resources/views/components/ui/tab/panel.blade.php": [
+            "tabs"
+        ]
+    },
+    "helpers": {
+        "popup": [
+            "select"
+        ]
+    },
+    "internalDependencies": {
+        "icon": [
+            "select",
+            "button",
+            "badge",
+            "navlist",
+            "sidebar",
+            "alerts",
+            "switch"
+        ],
+        "text": [
+            "select"
+        ],
+        "button": [
+            "badge",
+            "navlist",
+            "sidebar"
+        ],
+        "badge": [
+            "navlist"
+        ],
+        "navlist": [
+            "sidebar"
+        ]
+    }
+}
