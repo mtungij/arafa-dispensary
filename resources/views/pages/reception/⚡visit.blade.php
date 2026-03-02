@@ -126,17 +126,34 @@ public function getMovementsProperty()
     |--------------------------------------------------------------------------
     */
 
-    public function registerVisit()
-    {
-        $this->validate([
-            'selectedPatient' => 'required|exists:patients,id',
-            'patientType'     => 'required|in:cash,insurance',
-            'visitType'       => 'required|in:opd,short_stay',
-        ]);
+ public function registerVisit()
+{
+    $this->validate([
+        'selectedPatient' => 'required|exists:patients,id',
+        'patientType'     => 'required|in:cash,insurance',
+        'visitType'       => 'required|in:opd,short_stay',
+    ]);
 
-        $companyId = Auth::user()->company_id;
+    $companyId = Auth::user()->company_id;
+
+    try {
 
         DB::transaction(function () use ($companyId) {
+
+            // 🚫 Prevent duplicate active visit
+            $existingVisit = Visit::where('company_id', $companyId)
+                ->where('patient_id', $this->selectedPatient)
+                ->whereIn('status', [
+                    'waiting_payment',
+                    'waiting_doctor',
+                    'in_consultation'
+                ])
+                ->lockForUpdate() // 🔐 Prevent race condition
+                ->first();
+
+            if ($existingVisit) {
+                throw new \Exception('Patient already has an active visit.');
+            }
 
             $registrationFee = RegistrationFee::where('company_id', $companyId)
                 ->where('patient_type', $this->patientType)
@@ -152,7 +169,6 @@ public function getMovementsProperty()
                 ? 'billing'
                 : 'doctor';
 
-            // Create visit
             $visit = Visit::create([
                 'company_id'         => $companyId,
                 'patient_id'         => $this->selectedPatient,
@@ -162,7 +178,6 @@ public function getMovementsProperty()
                 'created_by'         => Auth::id(),
             ]);
 
-            // Create invoice
             Invoice::create([
                 'company_id'       => $companyId,
                 'visit_id'         => $visit->id,
@@ -174,7 +189,6 @@ public function getMovementsProperty()
                                         : 'covered_by_insurance',
             ]);
 
-            // Record movement
             PatientMovement::create([
                 'visit_id'        => $visit->id,
                 'from_department' => 'registration',
@@ -185,11 +199,13 @@ public function getMovementsProperty()
 
         $this->reset(['selectedPatient', 'patientType']);
 
-        $this->dispatch('refreshDoctorQueue');
-        $this->dispatch('refreshBillingQueue');
-
         session()->flash('message', 'Visit registered successfully.');
+
+    } catch (\Exception $e) {
+
+        session()->flash('error', $e->getMessage());
     }
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -292,8 +308,7 @@ public function exportPdf()
                     <x-ui.select.option value="{{ $patient->id }}">
                         {{ $patient->patient_number }} -
                         {{ $patient->first_name }} {{ $patient->last_name }}
-                        ({{ $patient->phone }}) -
-                        <strong>{{ $type }}</strong>
+                        ({{ $patient->phone }}) 
                     </x-ui.select.option>
                 @endforeach
             </x-ui.select>
@@ -344,14 +359,6 @@ public function exportPdf()
                     <x-ui.input type="date" wire:model="dob" />
                 </x-ui.field>
 
-                <x-ui.field>
-                    <x-ui.label>Patient Type</x-ui.label>
-                    <select wire:model="patientType" class="w-full border rounded p-2">
-                        <option value="">Select patient type</option>
-                        <option value="cash">Cash</option>
-                        <option value="insurance">Insurance</option>
-                    </select>
-                </x-ui.field>
 
             </div>
 
@@ -403,9 +410,14 @@ public function exportPdf()
     {{-- REGISTER VISIT BUTTON --}}
     {{-- =============================== --}}
     <div>
-        <x-ui.button wire:click="registerVisit" icon="plus-circle">
-            Create Visit & Generate Registration Fee
-        </x-ui.button>
+     <x-ui.button
+    wire:click="registerVisit"
+    wire:loading.attr="disabled"
+    wire:target="registerVisit"
+    icon="plus-circle"
+>
+    Create Visit & Generate Registration Fee
+</x-ui.button>
     </div>
 
     {{-- =============================== --}}

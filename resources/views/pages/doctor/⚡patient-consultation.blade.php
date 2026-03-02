@@ -1,6 +1,5 @@
 <?php
 
-
 use Livewire\Component;
 use App\Models\Visit;
 use App\Models\Investigation;
@@ -20,44 +19,69 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     public $social_history;
     public $rvs;
     public $examination;
-    public $investigations = [];
-    public $selectedInvestigations = [];
 
+    public $selectedInvestigations = [];
     public $activeTab = 'clinical';
 
-public function setTab($tab)
-{
-    $this->activeTab = $tab;
-}
+    public function setTab($tab)
+    {
+        $this->activeTab = $tab;
+    }
 
     public function mount($visitId)
     {
         $this->visitId = $visitId;
-        $this->visit = Visit::with('invoice', 'patient')->findOrFail($visitId);
 
-        // Pre-fill existing notes if any
-        $this->chief_complaint = $this->visit->chief_complaint;
+        $this->visit = Visit::with(['invoice', 'patient', 'movements'])
+            ->findOrFail($visitId);
+
+        $this->chief_complaint      = $this->visit->chief_complaint;
         $this->past_medical_history = $this->visit->past_medical_history;
-        $this->family_history = $this->visit->family_history;
-        $this->social_history = $this->visit->social_history;
-        $this->rvs = $this->visit->rvs;
-        $this->examination = $this->visit->examination;
+        $this->family_history       = $this->visit->family_history;
+        $this->social_history       = $this->visit->social_history;
+        $this->rvs                  = $this->visit->rvs;
+        $this->examination          = $this->visit->examination;
     }
 
-    public function getInvestigationsProperty()
+    /*
+    |--------------------------------------------------------------------------
+    | Available Investigations (Filtered by Patient Type)
+    |--------------------------------------------------------------------------
+    */
+
+    public function getAvailableInvestigationsProperty()
     {
-        return Investigation::all();
+        return Investigation::where('company_id', $this->visit->company_id)
+            ->where(
+                'category',
+                $this->visit->patient_type === 'cash' ? 'minor' : 'major'
+            )
+            ->orderBy('name')
+            ->get();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Selected Total
+    |--------------------------------------------------------------------------
+    */
+
+    public function getSelectedTotalProperty()
+    {
+        return Investigation::whereIn('id', $this->selectedInvestigations)
+            ->sum('price');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Save & Send
+    |--------------------------------------------------------------------------
+    */
 
     public function saveAndSend()
     {
         $this->validate([
             'chief_complaint' => 'required|string',
-            'past_medical_history' => 'nullable|string',
-            'family_history' => 'nullable|string',
-            'social_history' => 'nullable|string',
-            'rvs' => 'nullable|string',
-            'examination' => 'nullable|string',
             'selectedInvestigations' => 'array',
         ]);
 
@@ -73,49 +97,49 @@ public function setTab($tab)
                 'examination'          => $this->examination,
             ]);
 
-            $invoice = $this->visit->invoice;
-
-            // Determine if cash patient (replace with explicit flag if possible)
-            $isCash = $invoice->patient_amount > 0;
-
+            $isCash = $this->visit->patient_type === 'cash';
             $total = 0;
-            $patientTotal = 0;
-            $insuranceTotal = 0;
 
             foreach ($this->selectedInvestigations as $investigationId) {
-                $investigation = Investigation::find($investigationId);
-                if (!$investigation) continue;
 
-                $price = $isCash ? $investigation->cash_price : $investigation->insurance_price;
+                // SECURITY: Ensure investigation matches company + category
+                $investigation = Investigation::where('company_id', $this->visit->company_id)
+                    ->where(
+                        'category',
+                        $isCash ? 'minor' : 'major'
+                    )
+                    ->find($investigationId);
+
+                if (!$investigation) {
+                    abort(403, 'Invalid investigation selection.');
+                }
 
                 InvestigationRequest::create([
                     'visit_id' => $this->visit->id,
                     'investigation_id' => $investigation->id,
-                    'price' => $price,
+                    'price' => $investigation->price,
                     'status' => $isCash ? 'waiting_payment' : 'requested',
                 ]);
 
-                $total += $price;
-                $isCash ? $patientTotal += $price : $insuranceTotal += $price;
+                $total += $investigation->price;
             }
 
             if ($total > 0) {
+
+                $invoice = $this->visit->invoice;
+
                 $invoice->increment('total', $total);
+
                 if ($isCash) {
-                    $invoice->increment('patient_amount', $patientTotal);
+                    $invoice->increment('patient_amount', $total);
                 } else {
-                    $invoice->increment('insurance_amount', $insuranceTotal);
+                    $invoice->increment('insurance_amount', $total);
                 }
             }
 
-            // Move patient
-            if ($isCash) {
-                $toDepartment = 'billing';
-                $status = 'waiting_payment';
-            } else {
-                $toDepartment = 'lab';
-                $status = 'waiting_lab';
-            }
+            // Route patient
+            $toDepartment = $isCash ? 'billing' : 'lab';
+            $status = $isCash ? 'waiting_payment' : 'waiting_lab';
 
             $this->visit->update([
                 'status' => $status,
@@ -132,18 +156,11 @@ public function setTab($tab)
 
         return redirect()->route('doctor.queue');
     }
-
-    public function getSelectedTotalProperty()
-    {
-        $invoice = $this->visit->invoice;
-        $isCash = $invoice->patient_amount > 0;
-
-        return collect($this->selectedInvestigations)
-            ->map(fn($id) => $this->investigations->find($id)?->priceFor($isCash) ?? 0)
-            ->sum();
-    }
 };
 ?>
+
+
+
 
 <div class="p-6 bg-gray-100 min-h-screen">
 
@@ -253,38 +270,46 @@ public function setTab($tab)
 
 
             {{-- ================= INVESTIGATIONS TAB ================= --}}
-            @if($activeTab === 'investigations')
-                <div class="space-y-3">
+          @if($activeTab === 'investigations')
+    <div class="space-y-3">
 
-                    @foreach($this->investigations as $investigation)
-                        <label class="flex items-center justify-between border rounded-lg p-3 hover:bg-gray-50">
+        @forelse($this->availableInvestigations as $investigation)
+            <label class="flex items-center justify-between border rounded-lg p-3 hover:bg-gray-50">
 
-                            <div class="flex items-center gap-3">
-                                <input type="checkbox"
-                                       value="{{ $investigation->id }}"
-                                       wire:model="selectedInvestigations">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox"
+                           value="{{ $investigation->id }}"
+                           wire:model="selectedInvestigations">
 
-                                <span class="font-medium">
-                                    {{ $investigation->name }}
-                                </span>
-                            </div>
-
-                            <span class="text-sm text-gray-600">
-                                {{ $visit->invoice->patient_amount > 0
-                                    ? $investigation->cash_price
-                                    : $investigation->insurance_price }}
-                            </span>
-
-                        </label>
-                    @endforeach
-
-                    <div class="mt-4 text-right font-semibold text-lg">
-                        Total Selected: {{ $this->selectedTotal }}
-                    </div>
-
+                    <span class="font-medium">
+                        {{ $investigation->name }}
+                    </span>
                 </div>
-            @endif
 
+                <span class="text-sm text-gray-600">
+                    {{ number_format($investigation->price, 2) }}
+                </span>
+
+            </label>
+        @empty
+            <div class="text-gray-500 text-sm">
+                No investigations available for this patient type.
+            </div>
+        @endforelse
+
+        <div class="mt-4 text-right font-semibold text-lg">
+            Total Selected: {{ number_format($this->selectedTotal, 2) }}
+        </div>
+
+        <div class="pt-4">
+            <button wire:click="saveAndSend"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                Save & Send
+            </button>
+        </div>
+
+    </div>
+@endif
 
             {{-- ================= VISIT TIMELINE TAB ================= --}}
             @if($activeTab === 'timeline')

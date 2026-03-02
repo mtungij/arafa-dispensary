@@ -8,13 +8,11 @@ use App\Models\PatientMovement;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-new #[Layout('components.layouts.app-sidebar')]  class extends Component
+new #[Layout('components.layouts.app-sidebar')] class extends Component
 {
-  public $patients = [];
-    public $selectedInvoiceId = null;
-    public $paymentAmount = 0;
+    public $patients = [];
     public $receiptInvoice = null;
-    public $showReceiptModal = false;
+    public $selectedTab = 'overview';
 
     public function mount()
     {
@@ -23,22 +21,19 @@ new #[Layout('components.layouts.app-sidebar')]  class extends Component
 
     public function loadPatients()
     {
-        $this->patients = Visit::with('patient', 'invoice')
+        $this->patients = Visit::with('patient', 'invoice.payments', 'invoice.items')
             ->where('company_id', Auth::user()->company_id)
             ->where('status', 'waiting_payment')
             ->where('current_department', 'billing')
             ->get();
     }
 
-    // Confirm payment and move to doctor
     public function confirmPayment($invoiceId)
     {
-        $this->selectedInvoiceId = $invoiceId;
+        DB::transaction(function () use ($invoiceId) {
 
-        DB::transaction(function () {
-            $invoice = Invoice::with('visit.patient')->findOrFail($this->selectedInvoiceId);
+            $invoice = Invoice::with('visit.patient', 'payments', 'items')->findOrFail($invoiceId);
 
-            // Record payment
             $invoice->payments()->create([
                 'company_id'  => Auth::user()->company_id,
                 'amount'      => $invoice->patient_amount,
@@ -46,41 +41,38 @@ new #[Layout('components.layouts.app-sidebar')]  class extends Component
                 'received_by' => Auth::id(),
             ]);
 
-            // Mark invoice as paid
-            $invoice->status  = 'paid';
+            $invoice->status = 'paid';
             $invoice->paid_at = now();
             $invoice->save();
 
-            // Update visit to doctor
             $invoice->visit->update([
-                'status'             => 'waiting_doctor',
+                'status' => 'waiting_doctor',
                 'current_department' => 'doctor',
             ]);
 
-            // Record movement
             PatientMovement::create([
-                'visit_id'        => $invoice->visit->id,
+                'visit_id' => $invoice->visit->id,
                 'from_department' => 'billing',
-                'to_department'   => 'doctor',
-                'moved_at'        => now(),
+                'to_department' => 'doctor',
+                'moved_at' => now(),
             ]);
 
-            // Prepare receipt modal
-            $this->receiptInvoice = Invoice::with(['visit.patient', 'payments', 'items'])
-                ->find($this->selectedInvoiceId);
-            $this->showReceiptModal = true;
+            $this->receiptInvoice = $invoice;
 
-            // Reset
-            $this->selectedInvoiceId = null;
-            $this->loadPatients();
-
-            session()->flash('message', 'Payment confirmed. Patient sent to Doctor.');
+            // Trigger browser event to show modal
+            $this->dispatch('open-receipt-modal');
         });
 
+        $this->loadPatients();
+        session()->flash('message', 'Payment confirmed. Patient sent to Doctor.');
         $this->dispatch('refreshDoctorQueue');
     }
 
-};
+    public function resetReceipt()
+    {
+        $this->receiptInvoice = null;
+    }
+}
 ?>
 
 <div>
@@ -127,55 +119,83 @@ new #[Layout('components.layouts.app-sidebar')]  class extends Component
 
 
 
+<x-ui.heading level="h2" size="lg">Billing & Payment</x-ui.heading>
+<x-ui.text class="opacity-60">Confirm registration fees for cash patients and send them to Doctor.</x-ui.text>
 
-    <x-ui.heading level="h2" size="lg">Billing & Payment</x-ui.heading>
-    <x-ui.text class="opacity-60">Confirm registration fees for cash patients and send them to Doctor.</x-ui.text>
+@if(session()->has('message'))
+    <div class="p-3 bg-green-50 text-green-700 rounded mt-2">{{ session('message') }}</div>
+@endif
 
-    @if(session()->has('message'))
-        <div class="p-3 bg-green-50 text-green-700 rounded mt-2">{{ session('message') }}</div>
-    @endif
-
-    <table class="w-full text-sm border mt-4">
-        <thead class="bg-gray-100">
-            <tr>
-                <th class="p-2 text-left">Patient</th>
-                <th class="p-2 text-left">Amount</th>
-                <th class="p-2 text-left">Action</th>
+<table class="w-full text-sm border mt-4">
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="p-2 text-left">Patient</th>
+            <th class="p-2 text-left">Amount</th>
+            <th class="p-2 text-left">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($patients as $visit)
+            <tr class="border-t">
+                <td class="p-2">
+                    {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
+                    ({{ $visit->patient->patient_number }})
+                </td>
+                <td class="p-2">
+                    {{ number_format($visit->invoice->patient_amount, 2) }}
+                </td>
+                <td class="p-2">
+                    <x-ui.button 
+                        wire:click="confirmPayment({{ $visit->invoice->id }})"
+                        wire:loading.attr="disabled"
+                        wire:target="confirmPayment({{ $visit->invoice->id }})"
+                        icon="check-circle"
+                    >
+                        Confirm Payment
+                    </x-ui.button>
+                </td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach($patients as $visit)
-                <tr class="border-t">
-                    <td class="p-2">
-                        {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
-                        ({{ $visit->patient->patient_number }})
-                    </td>
-                    <td class="p-2">
-                        {{ number_format($visit->invoice->patient_amount, 2) }}
-                    </td>
-                    <td class="p-2">
-                        <x-ui.button wire:click="confirmPayment({{ $visit->invoice->id }})" icon="check-circle">
-                            Confirm Payment
-                        </x-ui.button>
-                    </td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
+        @endforeach
+    </tbody>
+</table>
 
-    {{-- Receipt Modal --}}
-  
-        <x-ui.modal id="receipt-modal" heading="Receipt" width="md" wire:model="showReceiptModal">
-        @if($receiptInvoice)
-            <div class="space-y-2">
-                <div><strong>Patient:</strong> {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
-                <div><strong>Invoice ID:</strong> {{ $receiptInvoice->id }}</div>
-                <div><strong>Total Paid:</strong> {{ number_format($receiptInvoice->payments->sum('amount'), 2) }}</div>
-                <div><strong>Payment Method:</strong> Cash</div>
-            </div>
-        @endif
-        <x-slot:footer>
-            <x-ui.button variant="outline" x-on:click="$data.showReceiptModal = false">Close</x-ui.button>
-        </x-slot:footer>
-    </x-ui.modal>
+<div 
+        id="receipt-modal"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden"
+    >
+        <div class="bg-white rounded-lg p-6 w-96 relative">
+            <button id="close-receipt" class="absolute top-2 right-2 text-gray-500 hover:text-black">&times;</button>
+
+            @if($receiptInvoice)
+                <div class="space-y-2">
+                    <div><strong>Patient:</strong> {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
+                    <div><strong>Invoice ID:</strong> {{ $receiptInvoice->id }}</div>
+                    <div><strong>Total Paid:</strong> {{ number_format($receiptInvoice->payments->sum('amount'), 2) }}</div>
+                    <div><strong>Payment Method:</strong> Cash</div>
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+<script>
+    const modal = document.getElementById('receipt-modal');
+    const closeBtn = document.getElementById('close-receipt');
+
+    // Open modal when Livewire triggers event
+    window.addEventListener('open-receipt-modal', () => {
+        modal.classList.remove('hidden');
+    });
+
+    // Close modal
+    closeBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        Livewire.emit('resetReceipt'); // reset invoice in component
+    });
+
+    // Listen for Livewire reset event
+    Livewire.on('resetReceipt', () => {
+        modal.classList.add('hidden');
+    });
+</script>
 </div>
