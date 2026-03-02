@@ -31,7 +31,7 @@
 
             init() {
                 const update = () => {
-                    const wasMobile = this.isMobile;
+            [new_code]
                     this.isMobile = window.innerWidth < 768;
                     if (this.isMobile) {
                         this.isCollapsed = false;
@@ -84,19 +84,41 @@
             }"
             x-cloak
         >
-            <x-slot:brand>
-                <div class="flex items-center gap-2 px-2 py-3" data-slot="brand-name">
-                    <a href="{{ route('home') }}" wire:navigate class="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="size-6 shrink-0 text-primary-content">
-                            <rect x="15" y="10" width="80" height="15" fill="currentColor" rx="5" ry="0" />
-                            <rect x="15" y="30" width="60" height="15" fill="currentColor" />
-                            <rect x="15" y="50" width="30" height="15" fill="currentColor" />
-                            <rect x="15" y="55" width="10" height="30" fill="currentColor" />
-                        </svg>
-                        <span class="text-lg font-bold">{{ config('app.name') }}</span>
-                    </a>
-                </div>
-            </x-slot:brand>
+   <x-slot:brand>
+    <div class="flex flex-col items-center px-2 py-3">
+
+        <a href="{{ route('home') }}" wire:navigate class="flex flex-col items-center gap-1">
+
+            @auth
+                @php
+                    /** @var \App\Models\User $user */
+                    $user = auth()->user();
+                    $company = $user->company ?? null;
+                @endphp
+
+                @if($company)
+                    <img 
+                        src="{{ $company->logo_url }}"
+                        class="h-12 w-12 object-contain rounded"
+                        alt="Company Logo"
+                    />
+                    <span class="text-lg font-bold mt-1 text-center whitespace-nowrap uppercase">{{ $company->name }}</span>
+                @else
+                    <span class="text-lg font-bold">{{ config('app.name') }}</span>
+                @endif
+
+            @else
+                <span class="text-lg font-bold">{{ config('app.name') }}</span>
+            @endauth
+
+        </a>
+
+    </div>
+</x-slot:brand>
+
+ <x-ui.separator class="my-2" />
+
+            
 
             <x-ui.navlist>
                 <x-ui.navlist.item
@@ -118,19 +140,73 @@
                     wire:navigate
                 />
             </x-ui.navlist>
-
-            <x-ui.separator class="my-2" />
+<!-- 
+            <x-ui.separator class="my-2" /> -->
 
             <x-ui.navlist>
-                <x-ui.navlist.group label="Components" :collapsable="true">
-                    <x-ui.navlist.item icon="stop" label="Buttons" href="#buttons" />
+
+               <x-ui.navlist.group label="Settings" :collapsable="true">
+                    <x-ui.navlist.item icon="cog" label="Registration Fees" href="{{ route('settings.registration-fees') }}" />
+                    <x-ui.navlist.item icon="identification" label="Investigation Master" href="{{ route('settings.investigation-master') }}" />
+                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
+                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
+                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
+                </x-ui.navlist.group>
+
+               <x-ui.navlist.group label="Employee Management" :collapsable="true">
+                 <x-ui.navlist.item 
+    icon="stop" 
+    label="Register Employee" 
+    href="{{ route('employee.index') }}"
+/>
+                    <x-ui.navlist.item icon="identification" label="Department Employee" />
+                    <x-ui.navlist.item icon="user-circle" label="Avatars"  />
+                    <x-ui.navlist.item icon="bell-alert" label="Alerts"  />
+                    <x-ui.navlist.item icon="rectangle-stack" label="Cards"  />
+                </x-ui.navlist.group>
+
+
+                   <x-ui.navlist.group label="Reception" :collapsable="true">
+                    <x-ui.navlist.item icon="bolt" label="Reception Dashboard" href="{{ route('reception.index') }}" />
                     <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
                     <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
                     <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
                     <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
                 </x-ui.navlist.group>
 
-                <x-ui.navlist.group label="Forms" :collapsable="true">
+
+                   <x-ui.navlist.group label="Doctor" :collapsable="true">
+                    <x-ui.navlist.item icon="pencil-square" label="Doctor Dashboard" href="{{ route('doctor.dashboard') }}" />
+                    <x-ui.navlist.item icon="document-text" label="Textarea" href="#textarea" />
+                    <x-ui.navlist.item icon="chevron-up-down" label="Select" href="#select" />
+                    <x-ui.navlist.item icon="arrow-path" label="Switch" href="#switch" />
+                </x-ui.navlist.group>
+
+
+
+                <x-ui.navlist.group label="Billing & Payments" :collapsable="true">
+                    <x-ui.navlist.item icon="cog" label="Billing Dashboard" href="{{ route('billing.index') }}" />
+                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
+                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
+                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
+                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
+                </x-ui.navlist.group>
+
+
+
+                   <x-ui.navlist.group label="Components" :collapsable="true">
+                    <x-ui.navlist.item icon="cog" label="Button" href="#" />
+                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
+                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
+                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
+                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
+                </x-ui.navlist.group>
+                
+
+             
+
+
+                   <x-ui.navlist.group label="Forms" :collapsable="true">
                     <x-ui.navlist.item icon="pencil-square" label="Inputs" href="#inputs" />
                     <x-ui.navlist.item icon="document-text" label="Textarea" href="#textarea" />
                     <x-ui.navlist.item icon="chevron-up-down" label="Select" href="#select" />

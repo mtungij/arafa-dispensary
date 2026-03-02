@@ -1,0 +1,312 @@
+<?php
+
+
+use Livewire\Component;
+use App\Models\Visit;
+use App\Models\Investigation;
+use App\Models\InvestigationRequest;
+use App\Models\PatientMovement;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
+
+new #[Layout('components.layouts.app-sidebar')] class extends Component
+{
+    public $visit;
+    public $visitId;
+
+    public $chief_complaint;
+    public $past_medical_history;
+    public $family_history;
+    public $social_history;
+    public $rvs;
+    public $examination;
+    public $investigations = [];
+    public $selectedInvestigations = [];
+
+    public $activeTab = 'clinical';
+
+public function setTab($tab)
+{
+    $this->activeTab = $tab;
+}
+
+    public function mount($visitId)
+    {
+        $this->visitId = $visitId;
+        $this->visit = Visit::with('invoice', 'patient')->findOrFail($visitId);
+
+        // Pre-fill existing notes if any
+        $this->chief_complaint = $this->visit->chief_complaint;
+        $this->past_medical_history = $this->visit->past_medical_history;
+        $this->family_history = $this->visit->family_history;
+        $this->social_history = $this->visit->social_history;
+        $this->rvs = $this->visit->rvs;
+        $this->examination = $this->visit->examination;
+    }
+
+    public function getInvestigationsProperty()
+    {
+        return Investigation::all();
+    }
+
+    public function saveAndSend()
+    {
+        $this->validate([
+            'chief_complaint' => 'required|string',
+            'past_medical_history' => 'nullable|string',
+            'family_history' => 'nullable|string',
+            'social_history' => 'nullable|string',
+            'rvs' => 'nullable|string',
+            'examination' => 'nullable|string',
+            'selectedInvestigations' => 'array',
+        ]);
+
+        DB::transaction(function () {
+
+            // Save clinical notes
+            $this->visit->update([
+                'chief_complaint'      => $this->chief_complaint,
+                'past_medical_history' => $this->past_medical_history,
+                'family_history'       => $this->family_history,
+                'social_history'       => $this->social_history,
+                'rvs'                  => $this->rvs,
+                'examination'          => $this->examination,
+            ]);
+
+            $invoice = $this->visit->invoice;
+
+            // Determine if cash patient (replace with explicit flag if possible)
+            $isCash = $invoice->patient_amount > 0;
+
+            $total = 0;
+            $patientTotal = 0;
+            $insuranceTotal = 0;
+
+            foreach ($this->selectedInvestigations as $investigationId) {
+                $investigation = Investigation::find($investigationId);
+                if (!$investigation) continue;
+
+                $price = $isCash ? $investigation->cash_price : $investigation->insurance_price;
+
+                InvestigationRequest::create([
+                    'visit_id' => $this->visit->id,
+                    'investigation_id' => $investigation->id,
+                    'price' => $price,
+                    'status' => $isCash ? 'waiting_payment' : 'requested',
+                ]);
+
+                $total += $price;
+                $isCash ? $patientTotal += $price : $insuranceTotal += $price;
+            }
+
+            if ($total > 0) {
+                $invoice->increment('total', $total);
+                if ($isCash) {
+                    $invoice->increment('patient_amount', $patientTotal);
+                } else {
+                    $invoice->increment('insurance_amount', $insuranceTotal);
+                }
+            }
+
+            // Move patient
+            if ($isCash) {
+                $toDepartment = 'billing';
+                $status = 'waiting_payment';
+            } else {
+                $toDepartment = 'lab';
+                $status = 'waiting_lab';
+            }
+
+            $this->visit->update([
+                'status' => $status,
+                'current_department' => $toDepartment,
+            ]);
+
+            PatientMovement::create([
+                'visit_id' => $this->visit->id,
+                'from_department' => 'doctor',
+                'to_department' => $toDepartment,
+                'moved_at' => now(),
+            ]);
+        });
+
+        return redirect()->route('doctor.queue');
+    }
+
+    public function getSelectedTotalProperty()
+    {
+        $invoice = $this->visit->invoice;
+        $isCash = $invoice->patient_amount > 0;
+
+        return collect($this->selectedInvestigations)
+            ->map(fn($id) => $this->investigations->find($id)?->priceFor($isCash) ?? 0)
+            ->sum();
+    }
+};
+?>
+
+<div class="p-6 bg-gray-100 min-h-screen">
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {{-- ================= LEFT SIDE - PROFILE CARD ================= --}}
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+
+            <div class="h-32 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+
+            <div class="px-6 pb-6">
+                <div class="flex flex-col items-center -mt-12">
+                    <div class="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde"
+                             class="w-full h-full object-cover">
+                    </div>
+
+                    <h3 class="mt-3 text-xl font-bold text-gray-800">
+                        {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
+                    </h3>
+
+                    <p class="text-sm text-gray-500">
+                        Visit #{{ $visit->id }}
+                    </p>
+                </div>
+
+                <div class="mt-6 space-y-2 text-sm text-gray-600">
+                    <p><strong>Gender:</strong> {{ $visit->patient->gender }}</p>
+                    <p><strong>Phone:</strong> {{ $visit->patient->phone }}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700">
+                            {{ $visit->status }}
+                        </span>
+                    </p>
+                    <p><strong>Department:</strong> {{ $visit->current_department }}</p>
+                </div>
+            </div>
+        </div>
+
+
+        {{-- ================= RIGHT SIDE - TABS ================= --}}
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+
+            {{-- TAB HEADERS --}}
+            <div class="flex gap-8 border-b mb-6 text-sm font-medium">
+
+                <button wire:click="setTab('clinical')"
+                    class="pb-3 {{ $activeTab === 'clinical' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
+                    Clinical Notes
+                </button>
+
+                <button wire:click="setTab('investigations')"
+                    class="pb-3 {{ $activeTab === 'investigations' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
+                    Investigations
+                </button>
+
+                <button wire:click="setTab('timeline')"
+                    class="pb-3 {{ $activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
+                    Visit Timeline
+                </button>
+            </div>
+
+
+            {{-- ================= CLINICAL NOTES TAB ================= --}}
+            @if($activeTab === 'clinical')
+                <div class="space-y-4">
+
+                    <textarea wire:model.lazy="chief_complaint"
+                        class="w-full border rounded-lg p-3"
+                        rows="2"
+                        placeholder="Chief Complaint"></textarea>
+
+                    <textarea wire:model.lazy="past_medical_history"
+                        class="w-full border rounded-lg p-3"
+                        rows="2"
+                        placeholder="Past Medical History"></textarea>
+
+                    <textarea wire:model.lazy="family_history"
+                        class="w-full border rounded-lg p-3"
+                        rows="2"
+                        placeholder="Family History"></textarea>
+
+                    <textarea wire:model.lazy="social_history"
+                        class="w-full border rounded-lg p-3"
+                        rows="2"
+                        placeholder="Social History"></textarea>
+
+                    <textarea wire:model.lazy="rvs"
+                        class="w-full border rounded-lg p-3"
+                        rows="2"
+                        placeholder="RVS"></textarea>
+
+                    <textarea wire:model.lazy="examination"
+                        class="w-full border rounded-lg p-3"
+                        rows="3"
+                        placeholder="Examination"></textarea>
+
+                    <div class="pt-4">
+                        <button wire:click="saveAndSend"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                            Save & Send
+                        </button>
+                    </div>
+
+                </div>
+            @endif
+
+
+            {{-- ================= INVESTIGATIONS TAB ================= --}}
+            @if($activeTab === 'investigations')
+                <div class="space-y-3">
+
+                    @foreach($this->investigations as $investigation)
+                        <label class="flex items-center justify-between border rounded-lg p-3 hover:bg-gray-50">
+
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox"
+                                       value="{{ $investigation->id }}"
+                                       wire:model="selectedInvestigations">
+
+                                <span class="font-medium">
+                                    {{ $investigation->name }}
+                                </span>
+                            </div>
+
+                            <span class="text-sm text-gray-600">
+                                {{ $visit->invoice->patient_amount > 0
+                                    ? $investigation->cash_price
+                                    : $investigation->insurance_price }}
+                            </span>
+
+                        </label>
+                    @endforeach
+
+                    <div class="mt-4 text-right font-semibold text-lg">
+                        Total Selected: {{ $this->selectedTotal }}
+                    </div>
+
+                </div>
+            @endif
+
+
+            {{-- ================= VISIT TIMELINE TAB ================= --}}
+            @if($activeTab === 'timeline')
+                <div class="space-y-4">
+
+                    @foreach($visit->movements as $movement)
+                        <div class="border-l-4 border-blue-500 pl-4 py-2 bg-gray-50 rounded">
+                            <p class="text-sm font-medium">
+                                {{ ucfirst($movement->from_department) }}
+                                →
+                                {{ ucfirst($movement->to_department) }}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                {{ $movement->moved_at }}
+                            </p>
+                        </div>
+                    @endforeach
+
+                </div>
+            @endif
+
+        </div>
+
+    </div>
+</div>

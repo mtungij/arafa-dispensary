@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Livewire\Concerns\HasToast;
+use App\Models\Invoice;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -61,4 +63,42 @@ class Dashboard extends Component
     {
         return view('livewire.dashboard');
     }
+
+
+    public function getDailyTotalsProperty()
+{
+    $companyId = Auth::user()->company_id;
+
+    $today = now()->toDateString();
+
+    $cashTotal = Invoice::where('company_id', $companyId)
+        ->whereDate('created_at', $today)
+        ->where('status', 'paid')
+        ->where('patient_amount', '>', 0)
+        ->sum('patient_amount');
+
+    $insuranceTotal = Invoice::where('company_id', $companyId)
+        ->whereDate('created_at', $today)
+        ->where('status', 'covered_by_insurance')
+        ->sum('insurance_amount');
+
+        $cashCount = Invoice::where('company_id', $companyId)
+    ->whereDate('created_at', $today)
+    ->where('status', 'paid')
+    ->where('patient_amount', '>', 0)
+    ->count();
+
+    $insuranceCount = Invoice::where('company_id', $companyId)
+    ->whereDate('created_at', $today)
+    ->where('status', 'covered_by_insurance')
+    ->count();
+
+    return [
+        'cash' => $cashTotal,
+        'insurance' => $insuranceTotal,
+        'cashcount'=> $cashCount,
+        'insurancecount' => $insuranceCount,
+        'total' => $cashTotal + $insuranceTotal
+    ];
+}
 }

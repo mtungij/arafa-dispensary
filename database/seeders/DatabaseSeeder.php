@@ -13,11 +13,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $company = \App\Models\Company::factory()->create([
+            'comp_logo' => 'company_logos/default-logo.png',
+        ]);
 
-        User::factory()->create([
+        \App\Models\User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'company_id' => $company->id,
+            'role' => 'admin',
         ]);
     }
 }

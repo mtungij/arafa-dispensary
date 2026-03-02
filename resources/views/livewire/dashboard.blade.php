@@ -7,7 +7,45 @@
             A comprehensive overview of every UI component available in this starter kit.
         </x-ui.text>
     </div>
+<div class="grid grid-cols-2 gap-4 mb-6">
 
+    <!-- Cash -->
+  
+
+       <x-ui.card size="xl">
+                <x-ui.heading level="h3" size="sm" class="mb-2">Cash Today Registration fee</x-ui.heading>
+                  <div class="mt-2 text-3xl font-bold text-primary-content">{{ number_format($this->dailyTotals['cash'], 2) }}</div>
+                <x-ui.text class="text-sm opacity-60">
+                     <x-ui.text class="text-sm opacity-60">Total page views this month</x-ui.text>
+            <div class="mt-3">
+                     <x-ui.badge color="green" icon="arrow-trending-up" size="sm"> {{ number_format($this->dailyTotals['cashcount'], 0) }} patients</x-ui.badge>
+                     </div>
+                </x-ui.text>
+            </x-ui.card>
+
+
+
+              <x-ui.card size="xl">
+                <x-ui.heading level="h3" size="sm" class="mb-2">Insurance Today Registration fee</x-ui.heading>
+                <div class="mt-2 text-3xl font-bold text-primary-content">{{ number_format($this->dailyTotals['insurance'], 2) }}</div>
+                <x-ui.text class="text-sm opacity-60">Total page views this month</x-ui.text>
+                <div class="mt-3">
+                    <x-ui.badge color="green" icon="arrow-trending-up" size="sm">  {{ number_format($this->dailyTotals['insurancecount'], 0) }} patients</x-ui.badge>
+                </div>
+            </x-ui.card>
+
+    <!-- Insurance -->
+   
+
+    <!-- Total -->
+    <div class="bg-gray-100 p-4 rounded shadow">
+        <h3 class="text-lg font-bold">Total Today</h3>
+        <p class="text-2xl font-semibold text-gray-800">
+            {{ number_format($this->dailyTotals['total'], 2) }}
+        </p>
+    </div>
+
+</div>
     {{-- ═══════════════════════════════════════════════════════════════════ --}}
     {{-- BUTTONS --}}
     {{-- ═══════════════════════════════════════════════════════════════════ --}}

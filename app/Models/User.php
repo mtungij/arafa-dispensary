@@ -20,7 +20,12 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'role',
+        'phone',
+        'passport',
         'password',
+        'company_id',
+        'department_id',
     ];
 
     /**
@@ -45,4 +50,15 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function department()
+{
+    return $this->belongsTo(Department::class);
+}
+
 }

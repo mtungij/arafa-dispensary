@@ -263,7 +263,7 @@
     {{ $attributes->class([
             'relative [--popup-round:var(--radius-box)] [--popup-padding:--spacing(1)]',
             'dark:border-red-400! dark:shadow-red-400 text-red-400! placeholder:text-red-400!' => $invalid,
-        ]),
+        ])
      }}
 >
 

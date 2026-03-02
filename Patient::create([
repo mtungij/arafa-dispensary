@@ -1,0 +1,16 @@
+[90m= [39m[34;4mApp\Models\User[39;24m {#6475
+    [34mid[39m: [35m6[39m,
+    [34mname[39m: "[32mjackline[39m",
+    [34memail[39m: "[32mjack@gmail.com[39m",
+    [34memail_verified_at[39m: [36mnull[39m,
+    #[33mpassword[39m: "[32m$2y$12$I99vyPd1kMYVFjzfrPI4Ae2Wm3BGBi70cjBUuVAg7FlLWtMa0D706[39m",
+    #[33mremember_token[39m: [36mnull[39m,
+    [34mcreated_at[39m: "[32m2026-02-25 14:00:14[39m",
+    [34mupdated_at[39m: "[32m2026-02-25 14:20:06[39m",
+    [34mrole[39m: "[32mdoctor[39m",
+    [34mphone[39m: "[32m0629364847[39m",
+    [34mpassport[39m: [36mnull[39m,
+    [34mcompany_id[39m: [35m2[39m,
+    [34mdepartment_id[39m: [35m3[39m,
+  }
+

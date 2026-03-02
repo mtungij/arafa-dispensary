@@ -1,0 +1,11 @@
+docker run -it -d \
+  --label traefik.http.routers.helixsoft.rule=Host\(\`helixsoft.online\`\) \
+  --label traefik.http.routers.helixsoft.tls.certresolver=lets-encrypt \
+  --label traefik.http.routers.helixsoft.tls=true \
+  --label traefik.http.routers.helixsoft.service=helixsoft-credit-http \
+  --label traefik.http.services.helixsoft-credit-http.loadbalancer.server.port=80 \
+  --name helixsoft \
+  --network web \
+  --restart always \
+  --expose 80 \
+mikoposoft/vunjadental:01

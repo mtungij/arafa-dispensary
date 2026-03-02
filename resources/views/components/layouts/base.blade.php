@@ -18,7 +18,25 @@
             :root {
                 --livewire-progress-bar-color: var(--color-primary);
             }
+            @media print {
+    body * {
+        visibility: hidden;
+    }
+    #print-area, #print-area * {
+        visibility: visible;
+    }
+    #print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+
+}
+            }
+    
         </style>
+
+  
 
 </head>
     <script>

@@ -31,6 +31,35 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/settings/account', Account::class)->name('settings.account');
 });
 
+Route::livewire('/post/create', 'pages::post.create');
+Route::middleware('auth')->group(function () {
+     Route::livewire('/employee/index', 'pages::employee.index')->name('employee.index');
+//     Route::livewire('/employee/create', 'pages::employee.create')->name('employee.create');
+//     Route::livewire('/employee/{id}/edit', 'pages::employee.edit')->name('employee.edit');
+//     Route::livewire('/employee/{id}', 'pages::employee.show')->name('employee.show');
+});
+Route::middleware('auth')->group(function () {
+     Route::livewire('/reception/index', 'pages::reception.visit')->name('reception.index');
+     Route::livewire('/reception/create-patient', 'pages::reception.create-patient')->name('reception.create-patient');
+
+});
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('/settings/registration-fees', 'pages::settings.registeration-fee')->name('settings.registration-fees');
+    Route::livewire('/settings/investigationMaster', 'pages::settings.investigation-manager')->name('settings.investigation-master');
+});
+
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('doctor/dashboard', 'pages::doctor.dashboard')->name('doctor.dashboard');
+    Route::livewire('doctor/consultation/{visitId}','pages::doctor.patient-consultation')->name('doctor.consultation');
+});
+
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('billing/index', 'pages::billing.dashboard')->name('billing.index');
+});
+
 Route::middleware(['auth'])->group(function () {
     Route::livewire('/auth/verify-email', VerifyEmail::class)
         ->name('verification.notice');

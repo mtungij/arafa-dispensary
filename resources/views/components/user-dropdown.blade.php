@@ -16,6 +16,7 @@
         <x-ui.dropdown.group label="Signed in as">
             <x-ui.dropdown.item>
                 {{ $user->email }}
+                {{ $user->company ? "({$user->company->name})" : 'No Company' }}
             </x-ui.dropdown.item>
         </x-ui.dropdown.group>
 
