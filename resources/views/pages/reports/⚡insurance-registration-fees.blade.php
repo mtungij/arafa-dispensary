@@ -181,7 +181,7 @@ public function exportPdf()
     {{-- Total & Pagination --}}
     <div class="flex justify-between items-center mt-4">
         <div class="font-semibold text-gray-700">
-            Total Collected: <span class="text-green-600">{{ number_format($this->totalAmount, 2) }}</span>
+            Total Claim: <span class="text-green-600">{{ number_format($this->totalAmount, 2) }}</span>
         </div>
         <div>
             {{ $this->invoices->links() }}

@@ -49,16 +49,16 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     |--------------------------------------------------------------------------
     */
 
-    public function getAvailableInvestigationsProperty()
-    {
-        return Investigation::where('company_id', $this->visit->company_id)
-            ->where(
-                'category',
-                $this->visit->patient_type === 'cash' ? 'minor' : 'major'
-            )
-            ->orderBy('name')
-            ->get();
-    }
+ public function getAvailableInvestigationsProperty()
+{
+    return Investigation::where('company_id', $this->visit->company_id)
+        ->where(
+            'category',
+            $this->visit->invoice->patient_amount > 0 ? 'major' : 'minor'
+        )
+        ->orderBy('name')
+        ->get();
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -195,6 +195,13 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                             {{ $visit->status }}
                         </span>
                     </p>
+                  @if($visit->invoice->patient_amount > 0)
+    <p>Patient Pays: {{ $visit->invoice->patient_amount }}</p>
+@endif
+
+@if($visit->invoice->insurance_amount > 0)
+    <p>Insurance Pays: {{ $visit->invoice->insurance_amount }}</p>
+@endif
                     <p><strong>Department:</strong> {{ $visit->current_department }}</p>
                 </div>
             </div>
@@ -221,6 +228,7 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                     class="pb-3 {{ $activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
                     Visit Timeline
                 </button>
+                
             </div>
 
 

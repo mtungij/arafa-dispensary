@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
     $table->foreignId('company_id')->constrained()->cascadeOnDelete();
     $table->enum('patient_type', ['cash', 'insurance']);
-    $table->decimal('amount', 12, 2);
+    $table->decimal('amount', 12, 2)->default(0);
             $table->timestamps();
             $table->unique(['company_id', 'patient_type']);
         });

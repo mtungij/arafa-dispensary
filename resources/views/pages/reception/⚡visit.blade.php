@@ -146,10 +146,12 @@ public function getMovementsProperty()
                 ->whereIn('status', [
                     'waiting_payment',
                     'waiting_doctor',
-                    'in_consultation'
+                    'consultation'
                 ])
                 ->lockForUpdate() // 🔐 Prevent race condition
                 ->first();
+
+                // dd($existingVisit);
 
             if ($existingVisit) {
                 throw new \Exception('Patient already has an active visit.');
