@@ -161,6 +161,8 @@ public function getMovementsProperty()
 
             $amount = $registrationFee->amount;
 
+            // dd($amount);
+
             $initialStatus = $this->patientType === 'cash'
                 ? 'waiting_payment'
                 : 'waiting_doctor';
@@ -572,18 +574,19 @@ public function exportPdf()
 
                         <tr class="hover:bg-gray-50 transition">
 
-                            <td class="p-4 font-medium text-gray-800">
+                            <td class="p-4 font-medium text-gray-800 uppercase">
                                 {{ $movement->visit->patient->first_name }}
                                 {{ $movement->visit->patient->last_name }}
                             </td>
 
-                            <td class="p-4">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {{ $isCash ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700' }}">
-                                    {{ $isCash ? 'Cash' : 'Insurance' }}
-                                </span>
-                            </td>
-
+                <td class="p-4">
+    <x-ui.badge 
+        :icon="$isCash ? 'banknotes' : 'shield-check'" 
+        :color="$isCash ? 'blue' : 'purple'"
+    >
+        {{ $isCash ? 'Cash' : 'Insurance' }}
+    </x-ui.badge>
+</td>
                             <td class="p-4 font-semibold text-gray-700">
                                 @if($isCash)
                                     {{ number_format($invoice->total ?? 0, 2) }}
@@ -592,11 +595,11 @@ public function exportPdf()
                                 @endif
                             </td>
 
-                            <td class="p-4 capitalize text-gray-600">
+                            <td class="p-4  text-gray-600 uppercase">
                                 {{ $movement->from_department }}
                             </td>
 
-                            <td class="p-4 capitalize text-gray-600">
+                            <td class="p-4  text-gray-600 uppercase">
                                 {{ $movement->to_department }}
                             </td>
 

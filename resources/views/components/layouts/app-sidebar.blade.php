@@ -219,8 +219,8 @@
                     <x-ui.navlist.item icon="chat-bubble-left" label="Toasts" href="#toasts" />
                 </x-ui.navlist.group>
 
-                <x-ui.navlist.group label="Layout" :collapsable="true">
-                    <x-ui.navlist.item icon="minus" label="Separators" href="#separators" />
+                <x-ui.navlist.group label="Reports" :collapsable="true">
+                    <x-ui.navlist.item icon="minus" label="Registration Fees" href="{{ route('reports.registration-fees') }}" />
                     <x-ui.navlist.item icon="rectangle-group" label="Tabs" href="#tabs" />
                     <x-ui.navlist.item icon="h1" label="Typography" href="#typography" />
                     <x-ui.navlist.item icon="sun" label="Theme" href="#theme" />

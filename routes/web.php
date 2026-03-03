@@ -60,6 +60,10 @@ Route::middleware('auth')->group(function () {
     Route::livewire('billing/index', 'pages::billing.dashboard')->name('billing.index');
 });
 
+Route::middleware('auth')->group(function () {
+    Route::livewire('reports/registration-fees', 'pages::reports.registration-fees')->name('reports.registration-fees');
+});
+
 Route::middleware(['auth'])->group(function () {
     Route::livewire('/auth/verify-email', VerifyEmail::class)
         ->name('verification.notice');

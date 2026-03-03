@@ -34,6 +34,9 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 
             $invoice = Invoice::with('visit.patient', 'payments', 'items')->findOrFail($invoiceId);
 
+
+          
+
             $invoice->payments()->create([
                 'company_id'  => Auth::user()->company_id,
                 'amount'      => $invoice->patient_amount,
