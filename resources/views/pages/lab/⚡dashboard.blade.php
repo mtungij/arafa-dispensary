@@ -53,10 +53,10 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <a href=""
-                               class="bg-blue-600 text-white px-4 py-1 rounded">
-                                Open
-                            </a>
+                          <a href="{{ route('lab.visit', $visit->id) }}"
+   class="bg-blue-600 text-white px-4 py-1 rounded">
+    Open
+</a>
                         </td>
                     </tr>
                 @empty

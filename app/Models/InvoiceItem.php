@@ -23,13 +23,14 @@ class InvoiceItem extends Model
         return $this->belongsTo(Invoice::class);
     }
 
+    public function investigationRequest()
+{
+    return $this->hasOne(InvestigationRequest::class, 'investigation_id', 'investigation_id')
+                ->where('visit_id', $this->invoice->visit_id);
+}
+
     /**
      * Automatically calculate total when saving.
      */
-    protected static function booted()
-    {
-        static::saving(function (InvoiceItem $item) {
-            $item->total = $item->quantity * $item->unit_price;
-        });
-    }
+   
 }

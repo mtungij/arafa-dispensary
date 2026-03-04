@@ -44,6 +44,8 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
             $invoice = Invoice::with('visit.patient', 'payments', 'items')
                 ->findOrFail($invoiceId);
 
+            
+
             // 1️⃣ Create Payment Record
             $invoice->payments()->create([
                 'company_id'  => Auth::user()->company_id,
@@ -52,41 +54,56 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                 'received_by' => Auth::id(),
             ]);
 
-          
-
             // 2️⃣ Mark Invoice Paid
             $invoice->update([
                 'status'  => 'paid',
                 'paid_at' => now(),
             ]);
 
-            // 3️⃣ Detect Workflow Based On Invoice Item Types
+            // 3️⃣ Update Investigation Requests (so lab sees them)
+           // 3️⃣ Update Investigation Requests (so lab sees them)
+foreach ($invoice->items as $item) {
+    if ($item->type === 'investigation') {
+        $investReq = $item->investigationRequest()->first(); // get actual model
+
+        if ($investReq) {
+            // Update existing request
+            $investReq->update([
+                'status' => 'requested',
+            ]);
+        } else {
+            // Create new InvestigationRequest if missing
+            \App\Models\InvestigationRequest::create([
+                'visit_id' => $invoice->visit->id,
+                'investigation_id' => $item->investigation_id,
+                'price' => $item->unit_price,
+                'status' => 'requested',
+            ]);
+        }
+    }
+}
+
+            // 4️⃣ Detect Workflow Based On Invoice Item Types
             $types = $invoice->items->pluck('type')->unique();
 
-            if ($types->contains('consultation')) {
+            if ($types->contains('consultation') || $types->contains('investigation')) {
                 $toDepartment = 'lab';
                 $status = 'waiting_lab';
-            } 
-            elseif ($types->contains('registration')) {
+            } elseif ($types->contains('registration') || $types->contains('medicine')) {
                 $toDepartment = 'doctor';
                 $status = 'waiting_doctor';
-            } 
-            elseif ($types->contains('medicine')) {
-                $toDepartment = 'doctor';
-                $status = 'waiting_doctor';
-            } 
-            else {
+            } else {
                 $toDepartment = 'doctor';
                 $status = 'waiting_doctor';
             }
 
-            // 4️⃣ Update Visit Department & Status
+            // 5️⃣ Update Visit Department & Status
             $invoice->visit->update([
                 'status' => $status,
                 'current_department' => $toDepartment,
             ]);
 
-            // 5️⃣ Record Movement
+            // 6️⃣ Record Movement
             PatientMovement::create([
                 'visit_id' => $invoice->visit->id,
                 'from_department' => 'billing',
@@ -94,11 +111,13 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                 'moved_at' => now(),
             ]);
 
+            // 7️⃣ Set receipt for modal
             $this->receiptInvoice = $invoice;
 
             $this->dispatch('open-receipt-modal');
         });
 
+        // 8️⃣ Reload patients for table
         $this->loadPatients();
 
         session()->flash('message', 'Payment confirmed successfully.');
@@ -111,6 +130,11 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     {
         $this->receiptInvoice = null;
     }
+
+    public function printReceipt()
+{
+    $this->dispatch('print-receipt');
+}
 }
 
 ?>
@@ -255,18 +279,39 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     id="receipt-modal"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden"
 >
-    <div class="bg-white rounded-lg p-6 w-96 relative">
+    <div class="bg-white rounded-lg p-6 w-96 relative shadow-lg">
+        <!-- Close button -->
         <button id="close-receipt" class="absolute top-2 right-2 text-gray-500 hover:text-black">&times;</button>
 
         @if($receiptInvoice)
-            <div class="space-y-4">
-                <div class="text-center">
-                    <h3 class="font-bold text-lg">Payment Receipt</h3>
-                    <div class="text-sm text-gray-500">Invoice #{{ $receiptInvoice->id }}</div>
-                    <div class="text-sm text-gray-500">Patient: {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
+            @php
+                $company = Auth::user()->company; // Assuming relationship exists
+            @endphp
+
+            <!-- Receipt Content Wrapper for Printing -->
+            <div id="print-receipt">
+                <!-- HEADER -->
+                <div class="text-center mb-4">
+                    @if($company->comp_logo)
+                        <img src="{{ asset('storage/'.$company->comp_logo) }}" alt="Company Logo" class="mx-auto h-12 w-12 object-contain mb-1">
+                    @endif
+                    <h2 class="text-xl font-bold">{{ $company->name }}</h2>
+                    <div class="text-sm text-gray-500">
+                        {{ $company->email }} | {{ $company->phone }}
+                    </div>
+                    <hr class="mt-2 border-gray-300">
                 </div>
 
-                <table class="w-full text-sm border-t border-b border-gray-200">
+                <!-- PATIENT & INVOICE INFO -->
+                <div class="mb-4 text-sm">
+                    <div><strong>Invoice #:</strong> {{ $receiptInvoice->id }}</div>
+                    <div><strong>Patient:</strong> {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
+                    <div><strong>Patient ID:</strong> {{ $receiptInvoice->visit->patient->patient_number }}</div>
+                    <div><strong>Date:</strong> {{ $receiptInvoice->paid_at ? $receiptInvoice->paid_at->format('d M Y H:i') : now()->format('d M Y H:i') }}</div>
+                </div>
+
+                <!-- INVOICE ITEMS -->
+                <table class="w-full text-sm border-t border-b border-gray-200 mb-4">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="p-2 text-left">Type</th>
@@ -289,19 +334,35 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                     </tbody>
                 </table>
 
-                <div class="flex justify-between font-bold text-gray-700">
+                <!-- TOTAL & PAYMENT METHOD -->
+                <div class="flex justify-between font-bold text-gray-700 mb-2">
                     <span>Total Paid:</span>
                     <span>{{ number_format($receiptInvoice->items->sum('total'), 2) }} TZS</span>
                 </div>
 
-                <div>
-                    <span class="font-semibold">Payment Method:</span> 
-                    {{ $receiptInvoice->payments->first()?->method ?? 'Cash' }}
+                <div class="text-sm mb-4">
+                    <strong>Payment Method:</strong> {{ $receiptInvoice->payments->first()?->method ?? 'Cash' }}
+                </div>
+
+                <div class="text-center text-xs text-gray-500">
+                    Thank you for your payment.
                 </div>
             </div>
+
+            <!-- PRINT BUTTON -->
+           <!-- PRINT BUTTON -->
+<div class="mt-4 text-center">
+    <x-ui.button
+        type="button"
+        wire:click="printReceipt"
+        icon="printer"
+        class="w-full"
+    >
+        Print Receipt
+    </x-ui.button>
+</div>
         @endif
     </div>
-</div>
 </div>
 
 <script>
@@ -316,12 +377,25 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     // Close modal
     closeBtn.addEventListener('click', () => {
         modal.classList.add('hidden');
-        Livewire.emit('resetReceipt'); // reset invoice in component
+        Livewire.emit('resetReceipt');
     });
 
-    // Listen for Livewire reset event
     Livewire.on('resetReceipt', () => {
         modal.classList.add('hidden');
     });
+
+    // PRINT FUNCTION
+    function printReceipt() {
+        const printContents = document.getElementById('print-receipt').innerHTML;
+        const originalContents = document.body.innerHTML;
+
+        document.body.innerHTML = printContents;
+        window.print();
+        document.body.innerHTML = originalContents;
+        location.reload(); // reload to restore Livewire events
+    }
 </script>
+</div>
+
+
 </div>

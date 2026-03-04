@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::livewire('laboratory/index', 'pages::lab.dashboard')->name('lab.index');
+    Route::livewire('laboratory/visit/{id}','pages::lab.lab-visit')->name('lab.visit');
 });
 
 Route::middleware(['auth'])->group(function () {
