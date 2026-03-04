@@ -193,6 +193,16 @@
                 </x-ui.navlist.group>
 
 
+                   <x-ui.navlist.group label="Lab" :collapsable="true">
+                    <x-ui.navlist.item icon="cog" label="Lab Dashboard" href="{{ route('lab.index') }}" />
+                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
+                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
+                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
+                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
+                </x-ui.navlist.group>
+                
+
+
 
                    <x-ui.navlist.group label="Components" :collapsable="true">
                     <x-ui.navlist.item icon="cog" label="Button" href="#" />

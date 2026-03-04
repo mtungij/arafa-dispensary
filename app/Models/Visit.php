@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Visit extends Model
 {
@@ -40,5 +41,9 @@ class Visit extends Model
 public function investigationRequests()
 {
     return $this->hasMany(InvestigationRequest::class);
+}
+public function invoices(): HasMany
+{
+    return $this->hasMany(Invoice::class);
 }
 }

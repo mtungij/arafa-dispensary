@@ -21,22 +21,30 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 
     public function loadPatients()
     {
-        $this->patients = Visit::with('patient', 'invoice.payments', 'invoice.items')
+        $this->patients = Visit::with('patient', 'invoices.items', 'invoices.payments')
             ->where('company_id', Auth::user()->company_id)
             ->where('status', 'waiting_payment')
             ->where('current_department', 'billing')
             ->get();
     }
 
+    public function getLatestConsultationInvoice($visit)
+    {
+        $visit->load('invoices.items');
+
+        return $visit->invoices
+            ->sortByDesc('created_at')
+            ->first(fn($inv) => $inv->items->isNotEmpty());
+    }
+
     public function confirmPayment($invoiceId)
     {
         DB::transaction(function () use ($invoiceId) {
 
-            $invoice = Invoice::with('visit.patient', 'payments', 'items')->findOrFail($invoiceId);
+            $invoice = Invoice::with('visit.patient', 'payments', 'items')
+                ->findOrFail($invoiceId);
 
-
-          
-
+            // 1️⃣ Create Payment Record
             $invoice->payments()->create([
                 'company_id'  => Auth::user()->company_id,
                 'amount'      => $invoice->patient_amount,
@@ -44,31 +52,59 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                 'received_by' => Auth::id(),
             ]);
 
-            $invoice->status = 'paid';
-            $invoice->paid_at = now();
-            $invoice->save();
+          
 
-            $invoice->visit->update([
-                'status' => 'waiting_doctor',
-                'current_department' => 'doctor',
+            // 2️⃣ Mark Invoice Paid
+            $invoice->update([
+                'status'  => 'paid',
+                'paid_at' => now(),
             ]);
 
+            // 3️⃣ Detect Workflow Based On Invoice Item Types
+            $types = $invoice->items->pluck('type')->unique();
+
+            if ($types->contains('consultation')) {
+                $toDepartment = 'lab';
+                $status = 'waiting_lab';
+            } 
+            elseif ($types->contains('registration')) {
+                $toDepartment = 'doctor';
+                $status = 'waiting_doctor';
+            } 
+            elseif ($types->contains('medicine')) {
+                $toDepartment = 'doctor';
+                $status = 'waiting_doctor';
+            } 
+            else {
+                $toDepartment = 'doctor';
+                $status = 'waiting_doctor';
+            }
+
+            // 4️⃣ Update Visit Department & Status
+            $invoice->visit->update([
+                'status' => $status,
+                'current_department' => $toDepartment,
+            ]);
+
+            // 5️⃣ Record Movement
             PatientMovement::create([
                 'visit_id' => $invoice->visit->id,
                 'from_department' => 'billing',
-                'to_department' => 'doctor',
+                'to_department' => $toDepartment,
                 'moved_at' => now(),
             ]);
 
             $this->receiptInvoice = $invoice;
 
-            // Trigger browser event to show modal
             $this->dispatch('open-receipt-modal');
         });
 
         $this->loadPatients();
-        session()->flash('message', 'Payment confirmed. Patient sent to Doctor.');
+
+        session()->flash('message', 'Payment confirmed successfully.');
+
         $this->dispatch('refreshDoctorQueue');
+        $this->dispatch('refreshLabQueue');
     }
 
     public function resetReceipt()
@@ -76,6 +112,7 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
         $this->receiptInvoice = null;
     }
 }
+
 ?>
 
 <div>
@@ -138,47 +175,133 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
         </tr>
     </thead>
     <tbody>
-        @foreach($patients as $visit)
-            <tr class="border-t">
-                <td class="p-2">
-                    {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
-                    ({{ $visit->patient->patient_number }})
-                </td>
-                <td class="p-2">
-                    {{ number_format($visit->invoice->patient_amount, 2) }}
-                </td>
-                <td class="p-2">
-                    <x-ui.button 
-                        wire:click="confirmPayment({{ $visit->invoice->id }})"
-                        wire:loading.attr="disabled"
-                        wire:target="confirmPayment({{ $visit->invoice->id }})"
-                        icon="check-circle"
-                    >
-                        Confirm Payment
-                    </x-ui.button>
-                </td>
-            </tr>
-        @endforeach
+       @foreach($patients as $visit)
+                @php
+                    $consultInvoice = $this->getLatestConsultationInvoice($visit);
+                    $consultItem = $consultInvoice?->items->where('type', 'consultation')->first();
+
+                    // Fallback: latest item from any invoice
+                    $latestInvoice = $visit->invoices->sortByDesc('created_at')->first();
+                    $latestItem = $latestInvoice?->items->first();
+                @endphp
+
+                <tr class="border-t">
+                    {{-- Patient --}}
+                    <td class="p-2">
+                        {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
+                        ({{ $visit->patient->patient_number }})
+                    </td>
+
+                    {{-- Description --}}
+                  <td class="p-2">
+    @if($latestInvoice && $latestInvoice->items->count())
+        <ul class="list-disc list-inside text-sm">
+            @foreach($latestInvoice->items as $item)
+                <li>{{ $item->description }} {{ number_format($item->unit_price) }}</li>
+            @endforeach
+        </ul>
+    @else
+        No Items
+    @endif
+</td>
+
+                    {{-- Amount --}}
+                   <td class="p-2">
+    @if($latestInvoice && $latestInvoice->items->count())
+        {{ number_format($latestInvoice->items->sum('unit_price'), 2) }}
+    @else
+        0.00
+    @endif
+</td>
+
+                    {{-- Type --}}
+                    <td class="p-2">
+                        @if($latestItem)
+                            <span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                                {{ ucfirst($latestItem->type) }}
+                            </span>
+                        @endif
+                    </td>
+
+                    {{-- Confirm Payment --}}
+              <td class="p-2">
+    @php
+        $latestInvoice = $visit->invoices->sortByDesc('created_at')->first();
+    @endphp
+
+    @if($latestInvoice)
+        <x-ui.button 
+            wire:click="confirmPayment({{ $latestInvoice->id }})"
+            wire:loading.attr="disabled"
+            wire:target="confirmPayment({{ $latestInvoice->id }})"
+            icon="check-circle"
+        >
+            Confirm Payment
+        </x-ui.button>
+    @else
+        <span class="text-gray-400 text-xs">No Invoice</span>
+    @endif
+</td>
+                </tr>
+            @endforeach
     </tbody>
 </table>
 
-<div 
-        id="receipt-modal"
-        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden"
-    >
-        <div class="bg-white rounded-lg p-6 w-96 relative">
-            <button id="close-receipt" class="absolute top-2 right-2 text-gray-500 hover:text-black">&times;</button>
 
-            @if($receiptInvoice)
-                <div class="space-y-2">
-                    <div><strong>Patient:</strong> {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
-                    <div><strong>Invoice ID:</strong> {{ $receiptInvoice->id }}</div>
-                    <div><strong>Total Paid:</strong> {{ number_format($receiptInvoice->payments->sum('amount'), 2) }}</div>
-                    <div><strong>Payment Method:</strong> Cash</div>
+
+
+
+<div 
+    id="receipt-modal"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden"
+>
+    <div class="bg-white rounded-lg p-6 w-96 relative">
+        <button id="close-receipt" class="absolute top-2 right-2 text-gray-500 hover:text-black">&times;</button>
+
+        @if($receiptInvoice)
+            <div class="space-y-4">
+                <div class="text-center">
+                    <h3 class="font-bold text-lg">Payment Receipt</h3>
+                    <div class="text-sm text-gray-500">Invoice #{{ $receiptInvoice->id }}</div>
+                    <div class="text-sm text-gray-500">Patient: {{ $receiptInvoice->visit->patient->first_name }} {{ $receiptInvoice->visit->patient->last_name }}</div>
                 </div>
-            @endif
-        </div>
+
+                <table class="w-full text-sm border-t border-b border-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-2 text-left">Type</th>
+                            <th class="p-2 text-left">Description</th>
+                            <th class="p-2 text-right">Qty</th>
+                            <th class="p-2 text-right">Unit</th>
+                            <th class="p-2 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($receiptInvoice->items as $item)
+                            <tr class="border-b border-gray-100">
+                                <td>{{ ucfirst($item->type) }}</td>
+                                <td>{{ $item->description }}</td>
+                                <td class="text-right">{{ $item->quantity }}</td>
+                                <td class="text-right">{{ number_format($item->unit_price, 2) }}</td>
+                                <td class="text-right">{{ number_format($item->total, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+
+                <div class="flex justify-between font-bold text-gray-700">
+                    <span>Total Paid:</span>
+                    <span>{{ number_format($receiptInvoice->items->sum('total'), 2) }} TZS</span>
+                </div>
+
+                <div>
+                    <span class="font-semibold">Payment Method:</span> 
+                    {{ $receiptInvoice->payments->first()?->method ?? 'Cash' }}
+                </div>
+            </div>
+        @endif
     </div>
+</div>
 </div>
 
 <script>

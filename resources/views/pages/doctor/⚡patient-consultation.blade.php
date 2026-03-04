@@ -4,6 +4,7 @@ use Livewire\Component;
 use App\Models\Visit;
 use App\Models\Investigation;
 use App\Models\InvestigationRequest;
+use App\Models\InvoiceItem;
 use App\Models\PatientMovement;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -74,60 +75,85 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
         return Investigation::whereIn('id', $this->cart)->sum('price');
     }
 
-    public function saveAndSendCart()
-    {
-        if (count($this->cart) === 0) {
-            session()->flash('error', 'Cart is empty!');
-            return;
+public function saveAndSendCart()
+{
+    if (count($this->cart) === 0) {
+        session()->flash('error', 'Cart is empty!');
+        return;
+    }
+
+    DB::transaction(function () {
+        $visit = $this->visit;
+
+        // Create a new independent invoice for consultation type
+        $isCash = $visit->invoice->patient_amount > 0;
+        $total = 0;
+      
+
+        // Create the independent invoice first
+        $consultationInvoice = \App\Models\Invoice::create([
+            'company_id'       => $visit->company_id,
+            'visit_id'         => $visit->id,
+            'total'            => 0, // will increment later
+            'insurance_amount' => 0,
+            'patient_amount'   => 0,
+            'status'           => $isCash ? 'unpaid' : 'covered_by_insurance',
+        ]);
+
+        foreach ($this->cart as $investigationId) {
+            $inv = Investigation::find($investigationId);
+            if (!$inv) continue;
+
+    
+            // Create InvestigationRequest
+            InvestigationRequest::create([
+                'visit_id' => $visit->id,
+                'investigation_id' => $inv->id,
+                'price' => $inv->price,
+                'status' => $isCash ? 'waiting_payment' : 'requested',
+            ]);
+
+            // Create InvoiceItem for this independent invoice
+            InvoiceItem::create([
+                'invoice_id'  => $consultationInvoice->id,
+                'type'        => 'consultation', // 👈 mark type
+                'description' => $inv->name,
+                'quantity'    => 1,
+                'unit_price'  => $inv->price,
+                'total'       => $inv->price,
+            ]);
+
+            $total += $inv->price;
         }
 
-        DB::transaction(function () {
-            $isCash = $this->visit->invoice->patient_amount > 0;
-            $total = 0;
-
-            foreach ($this->cart as $investigationId) {
-                $inv = Investigation::find($investigationId);
-                if (!$inv) continue;
-
-                InvestigationRequest::create([
-                    'visit_id' => $this->visit->id,
-                    'investigation_id' => $inv->id,
-                    'price' => $inv->price,
-                    'status' => $isCash ? 'waiting_payment' : 'requested',
-                ]);
-
-                $total += $inv->price;
-            }
-
-            if ($total > 0) {
-                $invoice = $this->visit->invoice;
-                $invoice->increment('total', $total);
-
-                if ($isCash) {
-                    $invoice->increment('patient_amount', $total);
-                } else {
-                    $invoice->increment('insurance_amount', $total);
-                }
-            }
-
-            // Update visit status and movements
-            $this->visit->update([
-                'status' => $isCash ? 'waiting_payment' : 'waiting_lab',
-                'current_department' => $isCash ? 'billing' : 'lab',
+        // Update invoice totals
+        if ($total > 0) {
+            $consultationInvoice->update([
+                'total'            => $total,
+                'patient_amount'   => $isCash ? $total : 0,
+                'insurance_amount' => $isCash ? 0 : $total,
             ]);
+        }
 
-            PatientMovement::create([
-                'visit_id' => $this->visit->id,
-                'from_department' => 'doctor',
-                'to_department' => $isCash ? 'billing' : 'lab',
-                'moved_at' => now(),
-            ]);
+        // Update visit status and movements
+        $visit->update([
+            'status' => $isCash ? 'waiting_payment' : 'waiting_lab',
+            'current_department' => $isCash ? 'billing' : 'lab',
+        ]);
 
-            $this->cart = []; // clear cart
-        });
+        PatientMovement::create([
+            'visit_id' => $visit->id,
+            'from_department' => 'doctor',
+            'to_department' => $isCash ? 'billing' : 'lab',
+            'moved_at' => now(),
+        ]);
 
-        session()->flash('message', 'Investigations submitted successfully!');
-    }
+        // Clear cart
+        $this->cart = [];
+    });
+
+    session()->flash('message', 'Consultation invoice created successfully!');
+}
 
     // ---------------- Tab Switching ----------------
     public function setTab($tab)

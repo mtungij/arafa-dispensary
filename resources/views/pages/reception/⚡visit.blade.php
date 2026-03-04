@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\MovementsExport;
+use App\Models\InvoiceItem;
 use Mpdf\Mpdf;
 
 new #[Layout('components.layouts.app-sidebar')] class extends Component
@@ -182,7 +183,7 @@ public function getMovementsProperty()
                 'created_by'         => Auth::id(),
             ]);
 
-            Invoice::create([
+            $invoice = Invoice::create([
                 'company_id'       => $companyId,
                 'visit_id'         => $visit->id,
                 'total'            => $amount,
@@ -191,6 +192,15 @@ public function getMovementsProperty()
                 'status'           => $this->patientType === 'cash'
                                         ? 'unpaid'
                                         : 'covered_by_insurance',
+            ]);
+
+              InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'type'       => 'registration',
+                'description'=> 'Registration Fee',
+                'quantity'   => 1,
+                'unit_price' => $amount,
+                'total'      => $amount,
             ]);
 
             PatientMovement::create([

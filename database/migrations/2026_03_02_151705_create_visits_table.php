@@ -19,7 +19,7 @@ return new class extends Migration
     $table->enum('visit_type', ['opd','short_stay'])->default('opd');
   $table->string('current_department')
       ->default('registration');
-    $table->enum('status', ['waiting_payment','waiting_doctor','consultation','completed'])->default('waiting_payment');
+    $table->enum('status', ['waiting_payment','waiting_doctor','consultation','waiting_lab','completed'])->default('waiting_payment');
     $table->foreignId('created_by')->constrained('users');
             $table->timestamps();
         });

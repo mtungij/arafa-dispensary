@@ -63,6 +63,11 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::livewire('reports/registration-fees', 'pages::reports.cash-registration-fees')->name('reports.registration-fees');
     Route::livewire('reports/insurance-fees','pages::reports.insurance-registration-fees')->name('reports.insurance-fees');
+    Route::livewire('reports/investigation-payments','pages::reports.investigation-payments')->name('reports.investigation-payments');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('laboratory/index', 'pages::lab.dashboard')->name('lab.index');
 });
 
 Route::middleware(['auth'])->group(function () {
