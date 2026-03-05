@@ -13,7 +13,7 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 {
     public $visit;
     public $visitId;
-
+public $labResults = []; // [request_id => result text]
     public $chief_complaint;
     public $past_medical_history;
     public $family_history;
@@ -25,19 +25,40 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
     public $selectedInvestigation = null; // dropdown selection
     public $cart = []; // cart array
 
-    public function mount($visitId)
-    {
-        $this->visitId = $visitId;
-        $this->visit = Visit::with(['invoice', 'patient', 'movements'])
-            ->findOrFail($visitId);
+  public function mount($visitId)
+{
+    $this->visitId = $visitId;
+    $this->visit = Visit::with([
+        'invoice',
+        'patient',
+        'movements',
+        'investigationRequests.investigation'
+    ])->findOrFail($visitId);
 
-        $this->chief_complaint      = $this->visit->chief_complaint;
-        $this->past_medical_history = $this->visit->past_medical_history;
-        $this->family_history       = $this->visit->family_history;
-        $this->social_history       = $this->visit->social_history;
-        $this->rvs                  = $this->visit->rvs;
-        $this->examination          = $this->visit->examination;
+    $this->chief_complaint      = $this->visit->chief_complaint;
+    $this->past_medical_history = $this->visit->past_medical_history;
+    $this->family_history       = $this->visit->family_history;
+    $this->social_history       = $this->visit->social_history;
+    $this->rvs                  = $this->visit->rvs;
+    $this->examination          = $this->visit->examination;
+
+    $this->loadLabResults();
+}
+
+/**
+ * Load completed investigations results
+ */
+public function loadLabResults()
+{
+    foreach ($this->visit->investigationRequests as $request) {
+        if ($request->status === 'completed') {
+            $this->labResults[$request->id] = [
+                'result' => $request->result,
+                'files'  => $request->file_path ? json_decode($request->file_path, true) : []
+            ];
+        }
     }
+}
 
     // ---------------- Available Investigations ----------------
     public function getAvailableInvestigationsProperty()
@@ -378,6 +399,36 @@ public function saveAndSendCart()
     </div>
 
 </div>
+@endif
+
+{{-- Lab Results --}}
+@if(count($labResults) > 0)
+    <div class="mt-8">
+        <h4 class="text-lg font-semibold mb-3">Laboratory Results</h4>
+        <div class="space-y-4">
+            @foreach($visit->investigationRequests as $request)
+                @if(isset($labResults[$request->id]))
+                    @php $lab = $labResults[$request->id]; @endphp
+                    <div class="p-4 border rounded shadow-sm bg-gray-50">
+                        <h5 class="font-medium">{{ $request->investigation->name }}</h5>
+                        <p class="mt-1"><strong>Result:</strong> {{ $lab['result'] ?? 'N/A' }}</p>
+
+                        @if(!empty($lab['files']))
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                @foreach($lab['files'] as $file)
+                                    @if(Str::endsWith($file, ['jpg','jpeg','png']))
+                                        <img src="{{ Storage::url($file) }}" class="h-20 w-auto border rounded">
+                                    @elseif(Str::endsWith($file, 'pdf'))
+                                        <a href="{{ Storage::url($file) }}" target="_blank" class="text-blue-600 underline">View PDF</a>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            @endforeach
+        </div>
+    </div>
 @endif
 
             {{-- TIMELINE TAB --}}
