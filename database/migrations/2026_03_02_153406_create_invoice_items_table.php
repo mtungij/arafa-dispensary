@@ -13,15 +13,25 @@ return new class extends Migration
     {
         Schema::create('invoice_items', function (Blueprint $table) {
             $table->id();
-                $table->foreignId('invoice_id')->constrained()->cascadeOnDelete();
-            
+
+            // Foreign key to invoices
+            $table->foreignId('invoice_id')->constrained()->cascadeOnDelete();
+
+            // Item type
             $table->enum('type', ['registration', 'consultation', 'lab', 'medicine', 'bed'])
                   ->default('registration');
-            
+
+            // Description & quantities
             $table->string('description');
             $table->integer('quantity')->default(1);
             $table->decimal('unit_price', 12, 2);
             $table->decimal('total', 12, 2);
+
+            // New medicine-specific fields
+            $table->string('dosage')->nullable();
+            $table->string('frequency')->nullable();
+            $table->string('duration')->nullable();
+
             $table->timestamps();
         });
     }

@@ -6,11 +6,14 @@ use App\Models\Investigation;
 use App\Models\InvestigationRequest;
 use App\Models\InvoiceItem;
 use App\Models\PatientMovement;
+use App\Models\Service;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\WithPagination;
 
 new #[Layout('components.layouts.app-sidebar')] class extends Component
 {
+    use WithPagination;
     public $visit;
     public $visitId;
 public $labResults = []; // [request_id => result text]
@@ -20,6 +23,14 @@ public $labResults = []; // [request_id => result text]
     public $social_history;
     public $rvs;
     public $examination;
+    public $serviceCart = [];
+public $selectedService = null;
+public $medicineCart = [];
+public $selectedMedicine = null;
+public $selectedMedicineQuantity = 1;
+public $medicineSearch = '';
+
+
 
     public $activeTab = 'clinical';
     public $selectedInvestigation = null; // dropdown selection
@@ -71,6 +82,101 @@ public function loadLabResults()
             ->orderBy('name')
             ->get();
     }
+
+
+
+
+    public function getServicesProperty()
+{
+    $isCashPatient = $this->visit->invoice->patient_amount > 0;
+
+    return Service::where('company_id', $this->visit->company_id)
+        ->get()
+        ->map(function ($service) use ($isCashPatient) {
+            $service->display_price = $isCashPatient
+                ? $service->cash_price
+                : $service->insurance_price;
+            return $service;
+        });
+}
+
+
+public function saveAndSendServiceCart()
+{
+    if (count($this->serviceCart) === 0) {
+        session()->flash('error', 'Service cart is empty!');
+        return;
+    }
+
+    DB::transaction(function () {
+        $visit = $this->visit;
+        $isCash = $visit->invoice->patient_amount > 0;
+
+        // Create independent invoice for services
+        $serviceInvoice = \App\Models\Invoice::create([
+            'company_id'       => $visit->company_id,
+            'visit_id'         => $visit->id,
+            'total'            => 0,
+            'insurance_amount' => 0,
+            'patient_amount'   => 0,
+            'status'           => $isCash ? 'unpaid' : 'covered_by_insurance',
+        ]);
+
+        $total = 0;
+
+        foreach ($this->serviceCart as $serviceId => $item) {
+            $service = Service::find($serviceId);
+            if (!$service) continue;
+
+            // Create VisitService
+            \App\Models\VisitService::create([
+                'visit_id'   => $visit->id,
+                'service_id' => $service->id,
+                'price'      => $item['price'],
+            ]);
+
+            // Create InvoiceItem
+            \App\Models\InvoiceItem::create([
+                'invoice_id'  => $serviceInvoice->id,
+                'type'        => 'service',
+                'description' => $service->name,
+                'quantity'    => 1,
+                'unit_price'  => $item['price'],
+                'total'       => $item['price'],
+            ]);
+
+            $total += $item['price'];
+        }
+
+        // Update invoice totals
+        if ($total > 0) {
+            $serviceInvoice->update([
+                'total'            => $total,
+                'patient_amount'   => $isCash ? $total : 0,
+                'insurance_amount' => $isCash ? 0 : $total,
+            ]);
+        }
+
+        // Update visit status and movement
+        $visit->update([
+            'status' => $isCash ? 'waiting_payment' : 'waiting_lab',
+            'current_department' => $isCash ? 'billing' : 'lab',
+        ]);
+
+        \App\Models\PatientMovement::create([
+            'visit_id' => $visit->id,
+            'from_department' => 'doctor',
+            'to_department'   => $isCash ? 'billing' : 'lab',
+            'moved_at'        => now(),
+        ]);
+
+        $this->serviceCart = [];
+    });
+
+    session()->flash('message', 'Service invoice created successfully!');
+}
+
+
 
     // ---------------- Cart Functions ----------------
     public function addToCart()
@@ -196,12 +302,212 @@ public function saveAndSendCart()
 
         return redirect()->route('doctor.queue');
     }
+
+
+    public function addToCartService()
+{
+    if (!$this->selectedService) return;
+
+    if (!isset($this->serviceCart[$this->selectedService])) {
+        $service = Service::find($this->selectedService);
+        if (!$service) return;
+
+        $isCashPatient = $this->visit->invoice->patient_amount > 0;
+        $this->serviceCart[$service->id] = [
+            'name' => $service->name,
+            'price' => $isCashPatient ? $service->cash_price : $service->insurance_price,
+        ];
+    }
+
+    $this->selectedService = null;
+}
+
+public function removeServiceFromCart($id)
+{
+    unset($this->serviceCart[$id]);
+}
+
+public function getServiceCartTotalProperty()
+{
+    return collect($this->serviceCart)->sum('price');
+}
+
+
+
+// Computed property to display medicines according to patient type
+use Livewire\WithPagination;
+public function getMedicinesProperty()
+{
+    $isCashPatient = $this->visit->invoice->patient_amount > 0;
+
+    $query = \App\Models\Medicine::query()
+        ->where('company_id', $this->visit->company_id)
+        ->where('quantity', '>', 0); // <-- only medicines in stock
+
+    // Apply price condition
+    if ($isCashPatient) {
+        $query->where('sell_price_cash', '>', 0);
+    } else {
+        $query->where('sell_price_insurance', '>', 0);
+    }
+
+    // Apply search
+    if ($this->medicineSearch) {
+        $query->where('name', 'like', '%' . $this->medicineSearch . '%');
+    }
+
+    return $query
+        ->paginate(2)
+        ->through(function ($medicine) use ($isCashPatient) {
+
+            $medicine->display_price = $isCashPatient
+                ? $medicine->sell_price_cash
+                : $medicine->sell_price_insurance;
+
+            return $medicine;
+        });
+}
+public function addToMedicineCart($medicineId = null)
+{
+    // Use the parameter if passed, otherwise use selectedMedicine
+    $medicineId = $medicineId ?? $this->selectedMedicine;
+
+    if (!$medicineId) {
+        return;
+    }
+
+    $medicine = \App\Models\Medicine::find($medicineId);
+    if (!$medicine) return;
+
+    $isCashPatient = $this->visit->invoice->patient_amount > 0;
+    $price = $isCashPatient ? $medicine->sell_price_cash : $medicine->sell_price_insurance;
+
+    if ($price <= 0 || $medicine->quantity <= 0) {
+        session()->flash('error', 'This medicine cannot be added.');
+        return;
+    }
+
+    $quantity = $this->selectedMedicineQuantity ?: 1;
+
+    if (!isset($this->medicineCart[$medicine->id])) {
+        $this->medicineCart[$medicine->id] = [
+            'name'      => $medicine->name,
+            'price'     => $price,
+            'quantity'  => $quantity,
+            'dosage'    => '',
+            'frequency' => '',
+            'duration'  => '',
+        ];
+    } else {
+        $this->medicineCart[$medicine->id]['quantity'] += $quantity;
+    }
+
+    // Reset inputs only if added via select
+    if (!$medicineId) {
+        $this->selectedMedicine = null;
+        $this->selectedMedicineQuantity = 1;
+    }
+}
+// Remove from cart
+public function removeMedicineFromCart($id)
+{
+    unset($this->medicineCart[$id]);
+}
+
+// Total
+public function getMedicineCartTotalProperty()
+{
+    return collect($this->medicineCart)->sum(fn($item) => $item['price'] * $item['quantity']);
+}
+
+// Save cart to invoice
+public function saveAndSendMedicineCart()
+{
+    if (count($this->medicineCart) === 0) {
+        session()->flash('error', 'Medicine cart is empty!');
+        return;
+    }
+
+    DB::transaction(function () {
+        $visit = $this->visit;
+        $isCash = $visit->invoice->patient_amount > 0;
+
+        // Create Invoice
+        $invoice = \App\Models\Invoice::create([
+            'company_id'       => $visit->company_id,
+            'visit_id'         => $visit->id,
+            'total'            => 0,
+            'insurance_amount' => 0,
+            'patient_amount'   => 0,
+            'status'           => $isCash ? 'unpaid' : 'covered_by_insurance',
+        ]);
+
+        $total = 0;
+
+        foreach ($this->medicineCart as $id => $item) {
+            $medicine = \App\Models\Medicine::find($id);
+            if (!$medicine) continue;
+
+            // Create InvoiceItem
+            \App\Models\InvoiceItem::create([
+                'invoice_id'  => $invoice->id,
+                'type'        => 'medicine',
+                'description' => $medicine->name,
+                'quantity'    => $item['quantity'],
+                'unit_price'  => $item['price'],
+                'total'       => $item['price'] * $item['quantity'],
+                'dosage'      => $item['dosage'] ?? null,
+                'frequency'   => $item['frequency'] ?? null,
+                'duration'    => $item['duration'] ?? null,
+            ]);
+
+            $total += $item['price'] * $item['quantity'];
+
+            // Reduce stock
+            $medicine->decrement('quantity', $item['quantity']);
+        }
+
+        // Update Invoice totals
+        $invoice->update([
+            'total'            => $total,
+            'patient_amount'   => $isCash ? $total : 0,
+            'insurance_amount' => $isCash ? 0 : $total,
+        ]);
+
+        // Update Visit status
+        $visit->update([
+            'status' => $isCash ? 'waiting_payment' : 'medicine',
+        ]);
+
+        // Refresh visit property to update UI
+        $this->visit = $visit->fresh();
+
+        // Clear cart and inputs
+        $this->medicineCart = [];
+        $this->selectedMedicine = null;
+        $this->selectedMedicineQuantity = 1;
+    });
+
+    // Use session flash for Livewire 4 notification
+    session()->flash('message', 'Medicine invoice created successfully!');
+}
 };
 ?>
 
 
 
 <div class="p-6 bg-gray-100 min-h-screen">
+
+@if (session()->has('message'))
+    <div class="bg-green-100 text-green-800 px-4 py-2 rounded mb-2">
+        {{ session('message') }}
+    </div>
+@endif
+@if (session()->has('error'))
+    <div class="bg-red-100 text-red-800 px-4 py-2 rounded mb-2">
+        {{ session('error') }}
+    </div>
+@endif
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -257,6 +563,15 @@ public function saveAndSendCart()
                     class="pb-3 {{ $activeTab === 'investigations' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
                     Investigations
                 </button>
+
+                <button wire:click="setTab('medicines')"
+    class="pb-3 {{ $activeTab === 'medicines' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
+    Medicines
+</button>
+
+        <button wire:click="setTab('services')" class="pb-3 {{ $activeTab === 'services' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
+          Services
+        </button>
 
                 <button wire:click="setTab('timeline')"
                     class="pb-3 {{ $activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500' }}">
@@ -429,6 +744,225 @@ public function saveAndSendCart()
             @endforeach
         </div>
     </div>
+@endif
+
+
+@if($activeTab === 'services')
+    <div class="space-y-3">
+
+        {{-- Select Service --}}
+        <div class="flex gap-2 items-end">
+            <x-ui.field class="flex-1">
+                <x-ui.label>Select Service</x-ui.label>
+                <x-ui.select placeholder="Find a service..."
+                             wire:model="selectedService"
+                             searchable>
+                    @foreach($this->services as $service)
+                        @if(isset($serviceCart[$service->id]))
+                            <x-ui.select.option value="{{ $service->id }}" disabled>
+                                {{ $service->name }} ({{ number_format($service->display_price, 2) }})
+                            </x-ui.select.option>
+                        @else
+                            <x-ui.select.option value="{{ $service->id }}">
+                                {{ $service->name }} ({{ number_format($service->display_price, 2) }})
+                            </x-ui.select.option>
+                        @endif
+                    @endforeach
+                </x-ui.select>
+            </x-ui.field>
+
+            <button type="button" wire:click="addToCartService" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                Add
+            </button>
+        </div>
+
+        {{-- Service Cart --}}
+        @if(count($serviceCart) > 0)
+            <div class="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-300 bg-gray-50">
+                            <th class="px-3 py-2 font-medium">Service</th>
+                            <th class="px-3 py-2 text-right font-medium">Price</th>
+                            <th class="px-3 py-2 text-right font-medium">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($serviceCart as $id => $item)
+                            <tr class="border-b border-gray-300 hover:bg-gray-50">
+                                <td class="px-3 py-2">{{ $item['name'] }}</td>
+                                <td class="px-3 py-2 text-right">{{ number_format($item['price'], 2) }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <button wire:click="removeServiceFromCart({{ $id }})" class="bg-red-500 text-white px-2 py-1 rounded">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50">
+                            <td colspan="1" class="px-3 py-3 text-right font-bold">Total</td>
+                            <td class="px-3 py-3 text-right font-bold">{{ number_format($this->serviceCartTotal, 2) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="pt-4">
+                <button wire:click="saveAndSendServiceCart" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
+                    Save & Send Services
+                </button>
+            </div>
+        @endif
+
+    </div>
+@endif
+
+@if($activeTab === 'medicines')
+<div class="space-y-4">
+
+    {{-- Search --}}
+    <input
+        type="text"
+        wire:model.live="medicineSearch"
+        placeholder="Search medicine..."
+        class="w-full border rounded px-3 py-2">
+
+    {{-- Medicine List --}}
+    <div class="overflow-x-auto border rounded-lg">
+        <table class="w-full text-left text-sm">
+            <thead>
+                <tr class="border-b bg-gray-50">
+                    <th class="px-3 py-2">Medicine</th>
+                    <th class="px-3 py-2">Category</th>
+                    <th class="px-3 py-2 text-right">Price</th>
+                    <th class="px-3 py-2 text-right">Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach($this->medicines as $medicine)
+                <tr class="border-b hover:bg-gray-50">
+
+                    <td class="px-3 py-2">
+                        {{ $medicine->name }}
+                        <span class="text-xs text-gray-500">
+                            ({{ $medicine->quantity }})
+                        </span>
+                    </td>
+
+                    <td class="px-3 py-2">
+                        {{ $medicine->category ?? '-' }}
+                    </td>
+
+                    <td class="px-3 py-2 text-right">
+                        {{ number_format($medicine->display_price,2) }}
+                    </td>
+
+                    <td class="px-3 py-2 text-right">
+                        <button
+                            wire:click="addToMedicineCart({{ $medicine->id }})"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+                            Add
+                        </button>
+                    </td>
+
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        {{-- Pagination --}}
+        <div class="p-3">
+            {{ $this->medicines->links() }}
+        </div>
+    </div>
+
+
+    {{-- Prescription Cart --}}
+    @if(count($medicineCart) > 0)
+
+    <div class="overflow-x-auto border rounded-lg mt-4">
+        <table class="w-full text-sm">
+
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-3 py-2">Medicine</th>
+                    <th>Qty</th>
+                    <th>Dosage</th>
+                    <th>Frequency</th>
+                    <th>Duration</th>
+                    <th class="text-right">Price</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @foreach($medicineCart as $id => $item)
+
+                <tr class="border-b">
+
+                    <td class="px-3 py-2">
+                        {{ $item['name'] }}
+                    </td>
+
+                    <td>
+                        <input
+                            type="number"
+                            wire:model.live="medicineCart.{{ $id }}.quantity"
+                            class="w-16 border rounded px-1">
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            placeholder="500mg"
+                            wire:model.live="medicineCart.{{ $id }}.dosage"
+                            class="border rounded px-2 py-1 w-24">
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            placeholder="3x/day"
+                            wire:model.live="medicineCart.{{ $id }}.frequency"
+                            class="border rounded px-2 py-1 w-24">
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            placeholder="5 days"
+                            wire:model.live="medicineCart.{{ $id }}.duration"
+                            class="border rounded px-2 py-1 w-24">
+                    </td>
+
+                    <td class="text-right">
+                        {{ number_format($item['price'] * $item['quantity'],2) }}
+                    </td>
+
+                </tr>
+
+                @endforeach
+
+            </tbody>
+        </table>
+    </div>
+
+    {{-- Save Button --}}
+    <div class="pt-4">
+        <button
+            wire:click="saveAndSendMedicineCart"
+            class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
+            Save & Send Medicines
+        </button>
+    </div>
+
+    @endif
+
+</div>
 @endif
 
             {{-- TIMELINE TAB --}}

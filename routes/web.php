@@ -75,8 +75,8 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware('auth')->group(function () {
 
-Route::livewire('medicine/index','pages::medicine.index')->name('medicine.index');
-Route::livewire('medicine/lists','pages::medicine.medicine-list')->name('medicine.index');
+Route::livewire('medicine/index','pages::medicine.medicine-list')->name('medicine.index');
+
 });
 
 Route::middleware(['auth'])->group(function () {

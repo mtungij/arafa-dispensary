@@ -31,4 +31,10 @@ class Medicine extends Model
     {
         return $this->belongsTo(\App\Models\Company::class);
     }
+
+
+      public function invoiceItems()
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
 }

@@ -37,6 +37,15 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
             ->first(fn($inv) => $inv->items->isNotEmpty());
     }
 
+   
+
+        public function getLatestMedicineInvoice($visit)
+    {
+        return $visit->invoices
+            ->sortByDesc('created_at')
+            ->first(fn($inv) => $inv->items->where('type', 'medicine')->isNotEmpty());
+    }
+
     public function confirmPayment($invoiceId)
     {
         DB::transaction(function () use ($invoiceId) {
@@ -181,7 +190,17 @@ foreach ($invoice->items as $item) {
             </x-ui.tabs>
         </div>
 
-
+  <div class="flex items-center justify-between mb-4">
+        <div>
+            <x-ui.heading level="h2" size="lg">Billing & Payment</x-ui.heading>
+            <x-ui.text class="opacity-60">Confirm medicine invoices for patients.</x-ui.text>
+        </div>
+        @if($patients->count())
+            <x-ui.badge color="red" variant="light">
+                {{ $patients->count() }} {{ Str::plural('patient', $patients->count()) }} waiting for payment
+            </x-ui.badge>
+             @endif
+    </div>
 
 <x-ui.heading level="h2" size="lg">Billing & Payment</x-ui.heading>
 <x-ui.text class="opacity-60">Confirm registration fees for cash patients and send them to Doctor.</x-ui.text>

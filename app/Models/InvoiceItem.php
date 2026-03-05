@@ -29,6 +29,14 @@ class InvoiceItem extends Model
                 ->where('visit_id', $this->invoice->visit_id);
 }
 
+
+
+    // Belongs to a single medicine (nullable for non-medicine items)
+    public function medicine()
+    {
+        return $this->belongsTo(Medicine::class);
+    }
+
     /**
      * Automatically calculate total when saving.
      */
