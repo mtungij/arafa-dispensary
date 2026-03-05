@@ -278,7 +278,7 @@ foreach ($invoice->items as $item) {
 <div 
     id="receipt-modal"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden"
->
+   >
     <div class="bg-white rounded-lg p-6 w-96 relative shadow-lg">
         <!-- Close button -->
         <button id="close-receipt" class="absolute top-2 right-2 text-gray-500 hover:text-black">&times;</button>
@@ -354,6 +354,8 @@ foreach ($invoice->items as $item) {
 <div class="mt-4 text-center">
     <x-ui.button
         type="button"
+        href="{{ route('billing.print-receipt', $receiptInvoice->id) }}"
+        target="_blank"
         wire:click="printReceipt"
         icon="printer"
         class="w-full"

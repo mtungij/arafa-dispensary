@@ -11,6 +11,7 @@ use App\Livewire\Auth\VerifyEmail;
 use App\Livewire\Dashboard;
 use App\Livewire\Settings\Account;
 use App\Livewire\Transactions;
+use App\Models\Invoice;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Route;
 
@@ -92,3 +93,10 @@ Route::middleware(['auth', 'signed'])->group(function () {
         return redirect(route('home'));
     })->name('verification.verify');
 });
+
+Route::get("billing/print-receipt/{visitId}", function ($invoiceId) {
+    $invoice = Invoice::with('visit.patient', 'payments', 'items')
+                ->findOrFail($invoiceId);
+    return view('pages.billing.print-receipt', ['receiptInvoice' => $invoice]);
+})->name('billing.print-receipt')
+  ->middleware('auth');
