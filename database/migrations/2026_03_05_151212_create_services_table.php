@@ -9,13 +9,21 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
-    {
-        Schema::create('services', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
-        });
-    }
+   public function up(): void
+{
+    Schema::create('services', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('company_id')->constrained()->cascadeOnDelete();
+
+        $table->string('name'); // Bed Rest 12hrs
+        $table->enum('type', ['procedure', 'bed_rest', 'other']);
+
+        $table->decimal('cash_price', 12, 2);
+        $table->decimal('insurance_price', 12, 2);
+
+        $table->timestamps();
+    });
+}
 
     /**
      * Reverse the migrations.

@@ -48,6 +48,7 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::livewire('/settings/registration-fees', 'pages::settings.registeration-fee')->name('settings.registration-fees');
     Route::livewire('/settings/investigationMaster', 'pages::settings.investigation-manager')->name('settings.investigation-master');
+    Route::livewire('/settings/services', 'pages::settings.service-form')->name('settings.services');
 });
 
 

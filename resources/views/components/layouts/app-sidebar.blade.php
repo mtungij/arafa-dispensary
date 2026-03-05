@@ -148,7 +148,7 @@
                <x-ui.navlist.group label="Settings" :collapsable="true">
                     <x-ui.navlist.item icon="cog" label="Registration Fees" href="{{ route('settings.registration-fees') }}" />
                     <x-ui.navlist.item icon="identification" label="Investigation Master" href="{{ route('settings.investigation-master') }}" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
+                    <x-ui.navlist.item icon="user-circle" label="Services" href="{{ route('settings.services') }}" />
                     <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
                     <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
                 </x-ui.navlist.group>
