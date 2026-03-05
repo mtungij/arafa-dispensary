@@ -31,6 +31,12 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
         }
     }
 
+    public function isLocked($request)
+{
+    // Lock if visit has moved to doctor
+    return $this->visit->status === 'waiting_doctor' || $request->status === 'completed';
+}
+
     /*
     |--------------------------------------------------------------------------
     | LIVE SAVE RESULTS
@@ -204,14 +210,14 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 
     {{-- Status Badge (Submitted / Not Submitted) --}}
   
-   @php
-    $isSubmitted = $request->status === 'completed';
+ @php
+$isSubmitted = !empty($results[$request->id]) || (isset($files[$request->id]) && count($files[$request->id]) > 0);
 @endphp
    
-    <span class="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold
-        {{ $isSubmitted ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800' }}">
-        {{ $isSubmitted ? 'Submitted' : 'Not Submitted' }}
-    </span>
+  <span class="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold
+    {{ $isSubmitted ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800' }}">
+    {{ $isSubmitted ? 'Submitted' : 'Not Submitted' }}
+</span>
 
     <h3 class="font-semibold mb-2">{{ $request->investigation->name }}</h3>
 
@@ -237,7 +243,7 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 
     {{-- File Upload --}}
     <div class="mt-2">
-        <input type="file" wire:model="files.{{ $request->id }}[]" multiple>
+        <input type="file" wire:model="files.{{ $request->id }}[]" multiple  @if($this->isLocked($request)) disabled @endif>>
         @error('files.'.$request->id) <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
 
         {{-- Preview new uploads --}}

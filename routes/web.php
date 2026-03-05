@@ -71,6 +71,11 @@ Route::middleware('auth')->group(function () {
     Route::livewire('laboratory/visit/{id}','pages::lab.lab-visit')->name('lab.visit');
 });
 
+Route::middleware('auth')->group(function () {
+
+Route::livewire('medicine/index','pages::medicine.index')->name('medicine.index');
+});
+
 Route::middleware(['auth'])->group(function () {
     Route::livewire('/auth/verify-email', VerifyEmail::class)
         ->name('verification.notice');

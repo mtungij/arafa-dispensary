@@ -204,8 +204,8 @@
 
 
 
-                   <x-ui.navlist.group label="Components" :collapsable="true">
-                    <x-ui.navlist.item icon="cog" label="Button" href="#" />
+                   <x-ui.navlist.group label="Medicine" :collapsable="true">
+                    <x-ui.navlist.item icon="cog" label="Medicine" href="{{ route('medicine.index') }}" />
                     <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
                     <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
                     <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
