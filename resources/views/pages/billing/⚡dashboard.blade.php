@@ -39,12 +39,18 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
 
    
 
-        public function getLatestMedicineInvoice($visit)
-    {
-        return $visit->invoices
-            ->sortByDesc('created_at')
-            ->first(fn($inv) => $inv->items->where('type', 'medicine')->isNotEmpty());
+public function getLatestMedicineInvoice($visit)
+{
+    $visit->load('invoices.items'); // ensure invoice items are loaded
+
+    foreach ($visit->invoices as $inv) {
+        logger("Invoice #{$inv->id}", $inv->toArray()); // log invoice and items
     }
+
+    return $visit->invoices
+        ->sortByDesc('created_at')
+        ->first(fn($inv) => $inv->items->where('type', 'medicine')->isNotEmpty());
+}
 
     public function confirmPayment($invoiceId)
     {

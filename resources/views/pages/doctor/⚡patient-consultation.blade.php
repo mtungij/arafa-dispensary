@@ -432,7 +432,7 @@ public function saveAndSendMedicineCart()
         $visit = $this->visit;
         $isCash = $visit->invoice->patient_amount > 0;
 
-        // Create Invoice
+        // Create a new invoice
         $invoice = \App\Models\Invoice::create([
             'company_id'       => $visit->company_id,
             'visit_id'         => $visit->id,
@@ -442,53 +442,53 @@ public function saveAndSendMedicineCart()
             'status'           => $isCash ? 'unpaid' : 'covered_by_insurance',
         ]);
 
-        $total = 0;
-
         foreach ($this->medicineCart as $id => $item) {
             $medicine = \App\Models\Medicine::find($id);
             if (!$medicine) continue;
 
-            // Create InvoiceItem
+            $quantity = max((int) ($item['quantity'] ?? 1), 1);
+            $price    = max((float) ($item['price'] ?? 0), 0);
+            if ($price <= 0 || $quantity <= 0) continue;
+
+            // Create InvoiceItem with medicine_id
             \App\Models\InvoiceItem::create([
                 'invoice_id'  => $invoice->id,
+                'medicine_id' => $medicine->id, // <--- add this
                 'type'        => 'medicine',
                 'description' => $medicine->name,
-                'quantity'    => $item['quantity'],
-                'unit_price'  => $item['price'],
-                'total'       => $item['price'] * $item['quantity'],
+                'quantity'    => $quantity,
+                'unit_price'  => $price,
                 'dosage'      => $item['dosage'] ?? null,
                 'frequency'   => $item['frequency'] ?? null,
                 'duration'    => $item['duration'] ?? null,
             ]);
 
-            $total += $item['price'] * $item['quantity'];
-
-            // Reduce stock
-            $medicine->decrement('quantity', $item['quantity']);
+            // Reduce stock immediately
+            $medicine->decrement('quantity', $quantity);
         }
 
-        // Update Invoice totals
+        // Recalculate invoice totals
+        $invoiceTotal = $invoice->items()->sum('total');
         $invoice->update([
-            'total'            => $total,
-            'patient_amount'   => $isCash ? $total : 0,
-            'insurance_amount' => $isCash ? 0 : $total,
+            'total'            => $invoiceTotal,
+            'patient_amount'   => $isCash ? $invoiceTotal : 0,
+            'insurance_amount' => $isCash ? 0 : $invoiceTotal,
         ]);
 
-        // Update Visit status
+        // Update visit status
         $visit->update([
             'status' => $isCash ? 'waiting_payment' : 'medicine',
         ]);
 
-        // Refresh visit property to update UI
+        // Refresh visit for UI
         $this->visit = $visit->fresh();
 
-        // Clear cart and inputs
+        // Clear cart
         $this->medicineCart = [];
         $this->selectedMedicine = null;
         $this->selectedMedicineQuantity = 1;
     });
 
-    // Use session flash for Livewire 4 notification
     session()->flash('message', 'Medicine invoice created successfully!');
 }
 };

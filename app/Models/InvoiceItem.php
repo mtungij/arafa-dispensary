@@ -6,39 +6,36 @@ use Illuminate\Database\Eloquent\Model;
 
 class InvoiceItem extends Model
 {
-     protected $fillable = [
+    protected $fillable = [
         'invoice_id',
         'type',         // registration, consultation, lab, medicine, bed
-        'description',  // e.g., "Registration Fee", "Blood Test"
-        'quantity',     // usually 1, can be more for medicines/tests
-        'unit_price',   // price per unit
-        'total',        // quantity * unit_price
+        'description',
+        'quantity',
+        'unit_price',
+        'total',
+        'dosage',
+        'frequency',
+        'duration',
+        'user_id',
     ];
 
-    /**
-     * Belongs to an invoice.
-     */
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
     }
 
-    public function investigationRequest()
-{
-    return $this->hasOne(InvestigationRequest::class, 'investigation_id', 'investigation_id')
-                ->where('visit_id', $this->invoice->visit_id);
-}
-
-
-
-    // Belongs to a single medicine (nullable for non-medicine items)
     public function medicine()
     {
         return $this->belongsTo(Medicine::class);
     }
 
-    /**
-     * Automatically calculate total when saving.
-     */
-   
+    // Automatically calculate total
+    protected static function booted()
+    {
+        static::saving(function ($item) {
+            $item->quantity   = $item->quantity ?? 1;
+            $item->unit_price = $item->unit_price ?? 0;
+            $item->total      = $item->unit_price * $item->quantity;
+        });
+    }
 }
