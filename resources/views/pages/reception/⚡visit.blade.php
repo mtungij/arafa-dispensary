@@ -126,100 +126,89 @@ public function getMovementsProperty()
     | REGISTER VISIT
     |--------------------------------------------------------------------------
     */
-
  public function registerVisit()
-{
-    $this->validate([
-        'selectedPatient' => 'required|exists:patients,id',
-        'patientType'     => 'required|in:cash,insurance',
-        'visitType'       => 'required|in:opd,short_stay',
-    ]);
+    {
+        $this->validate([
+            'selectedPatient' => 'required|exists:patients,id',
+            'patientType'     => 'required|in:cash,insurance',
+            'visitType'       => 'required|in:opd,short_stay',
+        ]);
 
-    $companyId = Auth::user()->company_id;
+        $companyId = Auth::user()->company_id;
 
-    try {
+        try {
+            DB::transaction(function () use ($companyId) {
+                $existingVisit = Visit::where('company_id', $companyId)
+                    ->where('patient_id', $this->selectedPatient)
+                    ->whereIn('status', [
+                        'waiting_payment',
+                        'waiting_doctor',
+                        'consultation'
+                    ])
+                    ->lockForUpdate()
+                    ->first();
 
-        DB::transaction(function () use ($companyId) {
+                if ($existingVisit) {
+                    throw new \Exception('Patient already has an active visit.');
+                }
 
-            // 🚫 Prevent duplicate active visit
-            $existingVisit = Visit::where('company_id', $companyId)
-                ->where('patient_id', $this->selectedPatient)
-                ->whereIn('status', [
-                    'waiting_payment',
-                    'waiting_doctor',
-                    'consultation'
-                ])
-                ->lockForUpdate() // 🔐 Prevent race condition
-                ->first();
+                $registrationFee = RegistrationFee::where('company_id', $companyId)
+                    ->where('patient_type', $this->patientType)
+                    ->firstOrFail();
 
-                // dd($existingVisit);
+                $amount = $registrationFee->amount;
 
-            if ($existingVisit) {
-                throw new \Exception('Patient already has an active visit.');
-            }
+                $initialStatus = $this->patientType === 'cash'
+                    ? 'waiting_payment'
+                    : 'waiting_doctor';
 
-            $registrationFee = RegistrationFee::where('company_id', $companyId)
-                ->where('patient_type', $this->patientType)
-                ->firstOrFail();
+                $initialDepartment = $this->patientType === 'cash'
+                    ? 'billing'
+                    : 'doctor';
 
-            $amount = $registrationFee->amount;
+                $visit = Visit::create([
+                    'company_id'         => $companyId,
+                    'patient_id'         => $this->selectedPatient,
+                    'visit_type'         => $this->visitType,
+                    'status'             => $initialStatus,
+                    'current_department' => $initialDepartment,
+                    'created_by'         => Auth::id(),
+                ]);
 
-            // dd($amount);
+                $invoice = Invoice::create([
+                    'company_id'       => $companyId,
+                    'visit_id'         => $visit->id,
+                    'total'            => $amount,
+                    'insurance_amount' => $this->patientType === 'insurance' ? $amount : 0,
+                    'patient_amount'   => $this->patientType === 'cash' ? $amount : 0,
+                    'status'           => $this->patientType === 'cash'
+                                            ? 'unpaid'
+                                            : 'covered_by_insurance',
+                ]);
 
-            $initialStatus = $this->patientType === 'cash'
-                ? 'waiting_payment'
-                : 'waiting_doctor';
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'type'       => 'registration',
+                    'description'=> 'Registration Fee',
+                    'quantity'   => 1,
+                    'unit_price' => $amount,
+                    'total'      => $amount,
+                ]);
 
-            $initialDepartment = $this->patientType === 'cash'
-                ? 'billing'
-                : 'doctor';
+                PatientMovement::create([
+                    'visit_id'        => $visit->id,
+                    'from_department' => 'registration',
+                    'to_department'   => $initialDepartment,
+                    'moved_at'        => now(),
+                ]);
+            });
 
-            $visit = Visit::create([
-                'company_id'         => $companyId,
-                'patient_id'         => $this->selectedPatient,
-                'visit_type'         => $this->visitType,
-                'status'             => $initialStatus,
-                'current_department' => $initialDepartment,
-                'created_by'         => Auth::id(),
-            ]);
-
-            $invoice = Invoice::create([
-                'company_id'       => $companyId,
-                'visit_id'         => $visit->id,
-                'total'            => $amount,
-                'insurance_amount' => $this->patientType === 'insurance' ? $amount : 0,
-                'patient_amount'   => $this->patientType === 'cash' ? $amount : 0,
-                'status'           => $this->patientType === 'cash'
-                                        ? 'unpaid'
-                                        : 'covered_by_insurance',
-            ]);
-
-              InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'type'       => 'registration',
-                'description'=> 'Registration Fee',
-                'quantity'   => 1,
-                'unit_price' => $amount,
-                'total'      => $amount,
-            ]);
-
-            PatientMovement::create([
-                'visit_id'        => $visit->id,
-                'from_department' => 'registration',
-                'to_department'   => $initialDepartment,
-                'moved_at'        => now(),
-            ]);
-        });
-
-        $this->reset(['selectedPatient', 'patientType']);
-
-        session()->flash('message', 'Visit registered successfully.');
-
-    } catch (\Exception $e) {
-
-        session()->flash('error', $e->getMessage());
+            $this->reset(['selectedPatient', 'patientType']);
+            $this->toastSuccess('Visit registered successfully!');
+        } catch (\Exception $e) {
+            $this->toastError($e->getMessage());
+        }
     }
-}
 
     /*
     |--------------------------------------------------------------------------

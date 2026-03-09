@@ -8,6 +8,7 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InvestigationsExport;
+use App\Support\Toast;
 use Mpdf\Mpdf;
 use Illuminate\Support\Facades\View;
 
@@ -75,6 +76,8 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
                 ]);
 
             session()->flash('message', 'Investigation updated successfully.');
+
+        Toast::success("Investigation updated successfully"); 
         } else {
             Investigation::create([
                 'company_id' => Auth::user()->company_id,
@@ -84,6 +87,7 @@ new #[Layout('components.layouts.app-sidebar')] class extends Component
             ]);
 
             session()->flash('message', 'Investigation added successfully.');
+               Toast::success("Investigation added successfully"); 
         }
 
         $this->resetForm();
