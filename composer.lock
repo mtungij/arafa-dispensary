@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3ba2cb0256b69c823f7712e7770f4534",
+    "content-hash": "ccb39d077f0047c0349d8a948f356b4f",
     "packages": [
         {
             "name": "brick/math",
@@ -4373,6 +4373,41 @@
                 "source": "https://github.com/sheafui/cli/tree/v1.3.4"
             },
             "time": "2025-11-30T14:34:29+00:00"
+        },
+        {
+            "name": "sonicpesa/sonicpesa-php",
+            "version": "v1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/SamSpeedX/SonicPesa-Sdk-php.git",
+                "reference": "1d1dbd37d360d36030e27e583f5f64af8c74241d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/SamSpeedX/SonicPesa-Sdk-php/zipball/1d1dbd37d360d36030e27e583f5f64af8c74241d",
+                "reference": "1d1dbd37d360d36030e27e583f5f64af8c74241d",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.0",
+                "php": ">=8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "SonicPesa\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Official SonicPesa PHP SDK",
+            "support": {
+                "issues": "https://github.com/SamSpeedX/SonicPesa-Sdk-php/issues",
+                "source": "https://github.com/SamSpeedX/SonicPesa-Sdk-php/tree/v1.0.2"
+            },
+            "time": "2026-03-01T14:10:35+00:00"
         },
         {
             "name": "symfony/clock",
@@ -10705,5 +10740,5 @@
         "php": "^8.2"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
