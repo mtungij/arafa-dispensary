@@ -54,16 +54,7 @@
     </div>
 
     {{-- Google Login --}}
-    <a href="#"
-       class="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200 dark:hover:bg-white/10">
-        <svg class="size-5" viewBox="-3 0 262 262" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid">
-            <path d="M255.878 133.451c0-10.734-.871-18.567-2.756-26.69H130.55v48.448h71.947c-1.45 12.04-9.283 30.172-26.69 42.356l-.244 1.622 38.755 30.023 2.685.268c24.659-22.774 38.875-56.282 38.875-96.027" fill="#4285F4"/>
-            <path d="M130.55 261.1c35.248 0 64.839-11.605 86.453-31.622l-41.196-31.913c-11.024 7.688-25.82 13.055-45.257 13.055-34.523 0-63.824-22.773-74.269-54.25l-1.531.13-40.298 31.187-.527 1.465C35.393 231.798 79.49 261.1 130.55 261.1" fill="#34A853"/>
-            <path d="M56.281 156.37c-2.756-8.123-4.351-16.827-4.351-25.82 0-8.994 1.595-17.697 4.206-25.82l-.073-1.73L15.26 71.312l-1.335.635C5.077 89.644 0 109.517 0 130.55s5.077 40.905 13.925 58.602l42.356-32.782" fill="#FBBC05"/>
-            <path d="M130.55 50.479c24.514 0 41.05 10.589 50.479 19.438l36.844-35.974C195.245 12.91 165.798 0 130.55 0 79.49 0 35.393 29.301 13.925 71.947l42.211 32.783c10.59-31.477 39.891-54.251 74.414-54.251" fill="#EB4335"/>
-        </svg>
-        Continue with Google
-    </a>
+   <div class="fixed bottom-6 right-6 z-50 sm:bottom-8 sm:right-8 lg:w-96"> <a href="https://wa.me/255629364847?text=Hello%20HELIX%20Team%2C%20I%20would%20like%20to%20know%20more%20about%20your%20healthcare%20system." target="_blank" rel="noopener noreferrer" class="group flex items-center justify-end gap-3"> {{-- Chat Bubble (hidden on mobile, visible on larger screens) --}} <div class="hidden lg:flex lg:w-56 items-center gap-3 bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-4 border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-shadow"> <div> <p class="font-semibold text-slate-900 dark:text-slate-50 text-sm"> Chat with us! </p> <p class="text-xs text-slate-600 dark:text-slate-400 mt-1"> We typically reply in minutes </p> </div> </div> {{-- WhatsApp Button --}} <div class="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg hover:shadow-2xl group-hover:scale-110 transition-transform duration-300"> <svg class="h-7 w-7 sm:h-8 sm:w-8 text-white" fill="currentColor" viewBox="0 0 24 24"> <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-4.938 1.236l-.005.003-.355.214-3.681-.96.978 3.57-.23.365a9.865 9.865 0 001.514 5.963 9.88 9.88 0 008.6 4.41h.005c5.46 0 9.9-4.453 9.9-9.92 0-2.65-.54-5.168-1.595-7.591l.03-.058a9.873 9.873 0 00-1.593-2.648zm8.237 14.856H12c-4.867 0-8.8-3.97-8.8-8.855 0-1.537.37-2.998 1.025-4.287L3.54 2.723l4.559 1.194a8.845 8.845 0 014.236-1.066h.005c4.865 0 8.8 3.97 8.8 8.855 0 4.884-3.935 8.855-8.8 8.855z"/> </svg> </div> </a> </div> </div>
 </form>
 
 <x-slot:footer>
@@ -73,3 +64,4 @@
         Create one
     </a>
 </x-slot>
+
