@@ -30,11 +30,13 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/dashboard', Dashboard::class)->name('dashboard');
     Route::livewire('/transactions', Transactions::class)->name('transactions');
     Route::livewire('/settings/account', Account::class)->name('settings.account');
+    
 });
 
 Route::livewire('/post/create', 'pages::post.create');
 Route::middleware('auth')->group(function () {
      Route::livewire('/employee/index', 'pages::employee.index')->name('employee.index');
+   
 //     Route::livewire('/employee/create', 'pages::employee.create')->name('employee.create');
 //     Route::livewire('/employee/{id}/edit', 'pages::employee.edit')->name('employee.edit');
 //     Route::livewire('/employee/{id}', 'pages::employee.show')->name('employee.show');
@@ -60,12 +62,15 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::livewire('billing/index', 'pages::billing.dashboard')->name('billing.index');
+    Route::livewire('billing/medicine','pages::billing.medicine-billing')->name('medicine.billing');
+    Route::livewire('billing/dispenser/{invoice}','pages::billing.dispense-invoice')->name('pharmacy.dispense');
 });
 
 Route::middleware('auth')->group(function () {
     Route::livewire('reports/registration-fees', 'pages::reports.cash-registration-fees')->name('reports.registration-fees');
     Route::livewire('reports/insurance-fees','pages::reports.insurance-registration-fees')->name('reports.insurance-fees');
     Route::livewire('reports/investigation-payments','pages::reports.investigation-payments')->name('reports.investigation-payments');
+    Route::livewire('reports/medicine-sold','pages::reports.sold-medicine')->name('medicine.sold');
 });
 
 Route::middleware('auth')->group(function () {
