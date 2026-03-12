@@ -14,7 +14,7 @@ use Illuminate\Validation\Rules\Password;
 use Livewire\Form;
 use Livewire\WithFileUploads;
 use App\Models\SystemRoute;
-
+use App\Jobs\SendSmsJob;
 final class RegisterForm extends Form
 {
     use WithFileUploads;
@@ -86,6 +86,22 @@ $user = User::create([
     'company_id' => $company->id,
 ]);
 
+// SMS kwa admin
+$messageAdmin = "Taarifa: Kampuni mpya imesajiliwa kwenye mfumo wa Helix.\n".
+                "Jina la Kampuni: ".$this->company_name."\n".
+                "Simu: ".$this->company_phone;
+
+SendSmsJob::dispatch("255629364847", $messageAdmin);
+SendSmsJob::dispatch("255747384847", $messageAdmin);
+
+// SMS kwa company owner
+$messageCompany = "Hongera ".$this->company_name."!\n".
+                  "Usajili wako umefanikiwa.\n".
+                  "Kama unahitaji msaada wasiliana nasi:\n".
+                  "255629364847 au 255747384847.";
+
+SendSmsJob::dispatch($this->company_phone, $messageCompany);
+
 // ✅ Assign all routes using the helper method
 $user->assignAllRoutes();
 
@@ -110,5 +126,17 @@ $user->assignAllRoutes();
     $user->load('company', 'company.departments');
 
 }
+public function debugSms()
+{
+    $testPhone = '255629364847'; // jaribu kwa namba yako
+    $testMessage = 'Hii ni test ya SMS kutoka Helix system';
+
+    $result = $this->sendsms($testPhone, $testMessage);
+
+    // show result on browser console or Livewire
+    dd($result); // au use logger
+}
+
+
 
 }

@@ -45,6 +45,8 @@ use WithFileUploads;
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
     }
 
+    
+
     public function addDepartment(): void
     {
         $this->form->addDepartment();
