@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Form;
 use Livewire\WithFileUploads;
+use App\Models\SystemRoute;
 
 final class RegisterForm extends Form
 {
@@ -61,41 +62,44 @@ public function removeDepartment($index)
 
     DB::transaction(function () use (&$user) {
 
-        // Store logo
-        $logoPath = null;
-        if ($this->comp_logo) {
-            $logoPath = $this->comp_logo->store('company_logos', 'public');
+    // Store logo
+    $logoPath = null;
+    if ($this->comp_logo) {
+        $logoPath = $this->comp_logo->store('company_logos', 'public');
+    }
+
+    // Create company
+    $company = Company::create([
+        'name' => $this->company_name,
+        'email' => $this->company_email,
+        'phone' => $this->company_phone,
+        'comp_logo' => $logoPath,
+    ]);
+
+    // Create admin user
+$user = User::create([
+    'name' => $this->name,
+    'email' => $this->email,
+    'phone'=> $this->company_phone,
+    'password' => Hash::make($this->password),
+    'role' => 'admin',
+    'company_id' => $company->id,
+]);
+
+// ✅ Assign all routes using the helper method
+$user->assignAllRoutes();
+
+    // Create departments
+    foreach ($this->departments as $deptName) {
+        $deptName = trim($deptName);
+        if ($deptName !== '') {
+            $company->departments()->create([
+                'name' => $deptName,
+            ]);
         }
+    }
 
-        // Create company
-        $company = Company::create([
-            'name' => $this->company_name,
-            'email' => $this->company_email,
-            'phone' => $this->company_phone,
-            'comp_logo' => $logoPath,
-        ]);
-
-        // Create admin user
-        $user = User::create([
-            'name' => $this->name,
-            'email' => $this->email,
-            'phone'=> $this->company_phone,
-            'password' => Hash::make($this->password),
-            'role' => 'admin',
-            'company_id' => $company->id,
-        ]);
-
-        // Create departments
-        foreach ($this->departments as $deptName) {
-            $deptName = trim($deptName);
-            if ($deptName !== '') {
-                $company->departments()->create([
-                    'name' => $deptName,
-                ]);
-            }
-        }
-
-    });
+});
 
     event(new Registered($user));
     Auth::login($user);

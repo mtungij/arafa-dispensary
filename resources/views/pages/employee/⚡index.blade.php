@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Support\Toast;
+use App\Models\SystemRoute;
 
 
 new  #[Layout('components.layouts.app-sidebar')] class extends Component
@@ -20,27 +21,38 @@ new  #[Layout('components.layouts.app-sidebar')] class extends Component
     public $password;
     public $confirmPassword;
     public $selectedDepartment;
-
-    public function mount()
-    {
-        // Multi-tenant: only users from the same company as logged-in admin
-        $companyId = Auth::user()->company_id;
-
-        // Eager load department relationship
-        $this->users = User::where('company_id', $companyId)
-            ->with('department') // eager load department
-            ->get()
-            ->toArray(); // convert to array if needed
+    public $routes = [];
+public $selectedRoutes = [];
 
 
+public function loadUsers()
+{
+    $this->users = User::where('company_id', Auth::user()->company_id)
+        ->with('department')
+        ->get()
+        ->toArray();
+}
 
-                 $company = Auth::user()->company;
+ public function mount()
+{
+    $companyId = Auth::user()->company_id;
 
-        if ($company) {
-            $this->departments = $company->departments; // collection of Department models
-        }
+    // Load users with department
+    $this->users = User::where('company_id', $companyId)
+        ->with('department')
+        ->get()
+        ->toArray();
+
+    // Load company departments
+    $company = Auth::user()->company;
+
+    if ($company) {
+        $this->departments = $company->departments;
     }
-    
+
+    // ✅ Load system routes
+    $this->routes = SystemRoute::orderBy('label')->get();
+}
 
 
       public function getFilteredUsersProperty(): array
@@ -82,46 +94,45 @@ if ($user->delete()) {
     }
 
 
-     public function register()
-    {
-        $this->validate([
-            'newName' => 'required|string|min:3|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:20',
-            'password' => 'required|min:6',
-            'confirmPassword' => 'required|same:password',
-            'selectedDepartment' => 'required|exists:departments,id',
-        ]);
+   public function register()
+{
+    $this->validate([
+        'newName' => 'required|string|min:3|max:255',
+        'email' => 'required|email|unique:users,email',
+        'phone' => 'nullable|string|max:20',
+        'password' => 'required|min:6',
+        'confirmPassword' => 'required|same:password',
+        'selectedDepartment' => 'required|exists:departments,id',
+    ]);
 
-        $company = Auth::user()->company;
+    $company = Auth::user()->company;
 
-        $company->users()->create([
-            'name' => $this->newName,
-            'email' => $this->email,
-            'phone' => $this->phone,
-            'password' => Hash::make($this->password),
-            'role' => 'doctor', // or pharmacist/doctor etc
-            'department_id' => $this->selectedDepartment,
-        ]);
+    $user = $company->users()->create([
+        'name' => $this->newName,
+        'email' => $this->email,
+        'phone' => $this->phone,
+        'password' => Hash::make($this->password),
+        'role' => 'doctor',
+        'department_id' => $this->selectedDepartment,
+    ]);
 
-        // Refresh users array so table updates
-        $this->users = User::where('company_id', Auth::user()->company_id)
-            ->with('department')
-            ->get()
-            ->toArray();
+    // attach selected routes
+    $user->routes()->sync($this->selectedRoutes);
 
-        // Reset form
-        $this->reset([
-            'newName',
-            'email',
-            'phone',
-            'password',
-            'confirmPassword',
-            'selectedDepartment',
-        ]);
+    $this->loadUsers();
 
-        session()->flash('message', 'Staff member added successfully.');
-    }
+    $this->reset([
+        'newName',
+        'email',
+        'phone',
+        'password',
+        'confirmPassword',
+        'selectedDepartment',
+        'selectedRoutes'
+    ]);
+
+    session()->flash('message','Staff member added successfully.');
+}
 
 
 
@@ -132,18 +143,20 @@ if ($user->delete()) {
     public $editingIndex;
 
     public function openEdit(int $index): void
-    {
-        $user = $this->users[$index] ?? null;
-        if (! $user) {
-            return;
-        }
-        $this->editingIndex = $index;
-        $this->editName = $user['name'] ?? '';
-        $this->editEmail = $user['email'] ?? '';
-        $this->editPhone = $user['phone'] ?? '';
-        $this->editDepartment = isset($user['department']['id']) ? $user['department']['id'] : null;
-    }
+{
+    $user = $this->users[$index] ?? null;
+    if (! $user) return;
 
+    $this->editingIndex = $index;
+    $this->editName = $user['name'] ?? '';
+    $this->editEmail = $user['email'] ?? '';
+    $this->editPhone = $user['phone'] ?? '';
+    $this->editDepartment = $user['department']['id'] ?? null;
+
+    // ✅ Load user's routes
+    $userModel = User::find($user['id']);
+    $this->selectedRoutes = $userModel->routes->pluck('id')->toArray();
+}
 
      public function saveEdit()
     {
@@ -176,6 +189,8 @@ if ($user->delete()) {
         $user->phone = $this->editPhone;
         $user->department_id = $this->editDepartment;
         $user->save();
+
+        $user->routes()->sync($this->selectedRoutes);
 
         // Refresh users array so table updates
         $this->users = User::where('company_id', Auth::user()->company_id)
@@ -278,7 +293,31 @@ if ($user->delete()) {
                 @endforeach
                 </x-ui.select>
             </x-ui.field>
+<x-ui.field>
+<x-ui.label>System Access</x-ui.label>
 
+<div class="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border p-3 rounded">
+
+@foreach($routes as $route)
+
+<label class="flex items-center gap-2 text-sm">
+
+<input
+type="checkbox"
+value="{{ $route->id }}"
+wire:model="selectedRoutes"
+class="rounded"
+/>
+
+{{ $route->label }}
+
+</label>
+
+@endforeach
+
+</div>
+
+</x-ui.field>
          
                
 
@@ -441,6 +480,25 @@ if ($user->delete()) {
                 @endforeach
                 </x-ui.select>
             </x-ui.field>
+
+
+            <x-ui.field>
+    <x-ui.label>System Access</x-ui.label>
+
+    <div class="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border p-3 rounded">
+        @foreach($routes as $route)
+            <label class="flex items-center gap-2 text-sm">
+                <input
+                    type="checkbox"
+                    value="{{ $route->id }}"
+                    wire:model="selectedRoutes"
+                    class="rounded"
+                />
+                {{ $route->label }}
+            </label>
+        @endforeach
+    </div>
+</x-ui.field>
         </div>
 
         <x-slot:footer>
