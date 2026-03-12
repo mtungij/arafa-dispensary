@@ -7,6 +7,22 @@
         $sidebarId = 'app-sidebar';
     @endphp
 
+@php
+/** @var \App\Models\User $user */
+$user = auth()->user();
+
+// Always-available routes (system constants)
+$alwaysAvailableRoutes = [
+    'verification.notice',
+    'app.auth.logout',
+    'password.confirm',
+    'verification.verify',
+    'home', // add any other constant routes you want every user to access
+];
+
+// Merge DB routes + always-available routes
+$userRoutes = $user->routes->pluck('name')->merge($alwaysAvailableRoutes)->unique();
+@endphp
     <div
         class="grid min-h-screen transition-all duration-500"
         style="--header-height: 3.5rem;"
@@ -127,12 +143,7 @@
                     :href="route('dashboard')"
                     wire:navigate
                 />
-                <x-ui.navlist.item
-                    icon="banknotes"
-                    label="Transactions"
-                    :href="route('transactions')"
-                    wire:navigate
-                />
+              
                 <x-ui.navlist.item
                     icon="cog-6-tooth"
                     label="Account"
@@ -145,96 +156,152 @@
 
             <x-ui.navlist>
 
-               <x-ui.navlist.group label="Settings" :collapsable="true">
-                    <x-ui.navlist.item icon="cog" label="Registration Fees" href="{{ route('settings.registration-fees') }}" />
-                    <x-ui.navlist.item icon="identification" label="Investigation Master" href="{{ route('settings.investigation-master') }}" />
-                    <x-ui.navlist.item icon="user-circle" label="Services" href="{{ route('settings.services') }}" />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
-                </x-ui.navlist.group>
+          @if($userRoutes->intersect([
+    'settings.registration-fees',
+    'settings.investigation-master',
+    'settings.services'
+])->isNotEmpty())
 
-               <x-ui.navlist.group label="Employee Management" :collapsable="true">
-                 <x-ui.navlist.item 
-    icon="stop" 
-    label="Register Employee" 
-    href="{{ route('employee.index') }}"
-/>
-                    <x-ui.navlist.item icon="identification" label="Department Employee" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars"  />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts"  />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards"  />
-                </x-ui.navlist.group>
+<x-ui.navlist.group label="Settings" :collapsable="true">
+
+    @if($userRoutes->contains('settings.registration-fees'))
+        <x-ui.navlist.item
+            icon="cog"
+            label="Registration Fees"
+            href="{{ route('settings.registration-fees') }}"
+        />
+    @endif
+
+    @if($userRoutes->contains('settings.investigation-master'))
+        <x-ui.navlist.item
+            icon="identification"
+            label="Investigation Master"
+            href="{{ route('settings.investigation-master') }}"
+        />
+    @endif
+
+    @if($userRoutes->contains('settings.services'))
+        <x-ui.navlist.item
+            icon="user-circle"
+            label="Services"
+            href="{{ route('settings.services') }}"
+        />
+    @endif
+
+</x-ui.navlist.group>
+
+@endif
+
+  @if($userRoutes->contains('employee.index'))
+
+<x-ui.navlist.group label="Employee Management" :collapsable="true">
+
+    <x-ui.navlist.item 
+        icon="stop" 
+        label="Register Employee" 
+        href="{{ route('employee.index') }}"
+    />
+
+</x-ui.navlist.group>
+
+@endif
+
+@if(auth()->user()->routes->contains('name','reception.index'))
+<x-ui.navlist.group label="Reception" :collapsable="true">
+    <x-ui.navlist.item 
+        icon="bolt" 
+        label="Reception Dashboard" 
+        href="{{ route('reception.index') }}" 
+    />
+</x-ui.navlist.group>
+@endif
 
 
-                   <x-ui.navlist.group label="Reception" :collapsable="true">
-                    <x-ui.navlist.item icon="bolt" label="Reception Dashboard" href="{{ route('reception.index') }}" />
-                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
-                </x-ui.navlist.group>
-
-
-                   <x-ui.navlist.group label="Doctor" :collapsable="true">
-                    <x-ui.navlist.item icon="pencil-square" label="Doctor Dashboard" href="{{ route('doctor.dashboard') }}" />
-                    <x-ui.navlist.item icon="document-text" label="Textarea" href="#textarea" />
-                    <x-ui.navlist.item icon="chevron-up-down" label="Select" href="#select" />
-                    <x-ui.navlist.item icon="arrow-path" label="Switch" href="#switch" />
-                </x-ui.navlist.group>
+                @if(auth()->user()->routes->contains('name','doctor.dashboard'))
+<x-ui.navlist.group label="Doctor" :collapsable="true">
+    <x-ui.navlist.item 
+        icon="pencil-square" 
+        label="Doctor Dashboard" 
+        href="{{ route('doctor.dashboard') }}" 
+    />
+</x-ui.navlist.group>
+@endif
 
 
 
-                <x-ui.navlist.group label="Billing & Payments" :collapsable="true">
-                    <x-ui.navlist.item icon="cog" label="Billing Dashboard" href="{{ route('billing.index') }}" />
-                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
-                </x-ui.navlist.group>
+             @if($userRoutes->contains('billing.index') || $userRoutes->contains('medicine.billing'))
+<x-ui.navlist.group label="Billing & Payments" :collapsable="true">
 
+    @if($userRoutes->contains('billing.index'))
+        <x-ui.navlist.item 
+            icon="cog" 
+            label="Billing Dashboard" 
+            href="{{ route('billing.index') }}" 
+        />
+    @endif
 
-                   <x-ui.navlist.group label="Lab" :collapsable="true">
-                    <x-ui.navlist.item icon="cog" label="Lab Dashboard" href="{{ route('lab.index') }}" />
-                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
-                </x-ui.navlist.group>
+    @if($userRoutes->contains('medicine.billing'))
+        <x-ui.navlist.item 
+            icon="identification" 
+            label="Medicine Billing" 
+            href="{{ route('medicine.billing') }}" 
+        />
+    @endif
+
+</x-ui.navlist.group>
+@endif
                 
 
 
 
-                   <x-ui.navlist.group label="Medicine" :collapsable="true">
-                    <x-ui.navlist.item icon="cog" label="Medicine" href="{{ route('medicine.index') }}" />
-                    <x-ui.navlist.item icon="identification" label="Badges" href="#badges" />
-                    <x-ui.navlist.item icon="user-circle" label="Avatars" href="#avatars" />
-                    <x-ui.navlist.item icon="bell-alert" label="Alerts" href="#alerts" />
-                    <x-ui.navlist.item icon="rectangle-stack" label="Cards" href="#cards" />
-                </x-ui.navlist.group>
-                
+                @if($userRoutes->contains('medicine.index'))
+<x-ui.navlist.group label="Medicine" :collapsable="true">
+
+    <x-ui.navlist.item 
+        icon="cog" 
+        label="Medicine" 
+        href="{{ route('medicine.index') }}" 
+    />
+
+</x-ui.navlist.group>
+@endif
 
              
+@if(
+    $userRoutes->contains('reports.registration-fees') ||
+    $userRoutes->contains('reports.insurance-fees') ||
+    $userRoutes->contains('medicine.sold')
+)
 
+<x-ui.navlist.group label="Reports" :collapsable="true">
 
-                   <x-ui.navlist.group label="Forms" :collapsable="true">
-                    <x-ui.navlist.item icon="pencil-square" label="Inputs" href="#inputs" />
-                    <x-ui.navlist.item icon="document-text" label="Textarea" href="#textarea" />
-                    <x-ui.navlist.item icon="chevron-up-down" label="Select" href="#select" />
-                    <x-ui.navlist.item icon="arrow-path" label="Switch" href="#switch" />
-                </x-ui.navlist.group>
+    @if($userRoutes->contains('reports.registration-fees'))
+        <x-ui.navlist.item 
+            icon="minus" 
+            label="Cash Registration Fees" 
+            href="{{ route('reports.registration-fees') }}" 
+        />
+    @endif
 
-                <x-ui.navlist.group label="Overlays" :collapsable="true">
-                    <x-ui.navlist.item icon="window" label="Modals" href="#modals" />
-                    <x-ui.navlist.item icon="bars-3" label="Dropdowns" href="#dropdowns" />
-                    <x-ui.navlist.item icon="chat-bubble-left" label="Toasts" href="#toasts" />
-                </x-ui.navlist.group>
+    @if($userRoutes->contains('reports.insurance-fees'))
+        <x-ui.navlist.item 
+            icon="rectangle-group" 
+            label="Insurance Registration Fees" 
+            href="{{ route('reports.insurance-fees') }}" 
+        />
+    @endif
 
-                <x-ui.navlist.group label="Reports" :collapsable="true">
-                    <x-ui.navlist.item icon="minus" label=" Cash Registration Fees" href="{{ route('reports.registration-fees') }}" />
-                    <x-ui.navlist.item icon="rectangle-group" label="Insurance Registration Fees" href="{{ route('reports.insurance-fees') }}" />
-                    <x-ui.navlist.item icon="h1" label="Typography" href="#typography" />
-                    <x-ui.navlist.item icon="sun" label="Theme" href="#theme" />
-                </x-ui.navlist.group>
+    @if($userRoutes->contains('medicine.sold'))
+        <x-ui.navlist.item 
+            icon="h1" 
+            label="Medicine Sales" 
+            href="{{ route('medicine.sold') }}" 
+        />
+    @endif
+
+</x-ui.navlist.group>
+
+@endif
             </x-ui.navlist>
 
             {{-- Push remaining items to bottom --}}
