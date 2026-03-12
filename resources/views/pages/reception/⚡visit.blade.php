@@ -1,35 +1,46 @@
 <?php
 
-use Livewire\Component;
-use App\Models\Patient;
-use App\Models\Visit;
+use App\Exports\MovementsExport;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Patient;
 use App\Models\PatientMovement;
 use App\Models\RegistrationFee;
+use App\Models\Visit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Component;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\MovementsExport;
-use App\Models\InvoiceItem;
 use Mpdf\Mpdf;
 
 new #[Layout('components.layouts.app-sidebar')] class extends Component
 {
     public $selectedPatient = null;
+
     public $visitType = 'opd';
+
     public $patientType = null;
-public $search = '';
+
+    public $search = '';
+
     // New patient fields
     public $first_name;
+
     public $last_name;
+
     public $phone;
+
     public $gender;
+
     public $dob;
+
     public $dateFrom = null;
-public $dateTo = null;
-public $department = null; // new property
+
+    public $dateTo = null;
+
+    public $department = null; // new property
+
     public $selectedVisitMovements = [];
 
     /*
@@ -46,47 +57,47 @@ public $department = null; // new property
                 $query->whereIn('status', [
                     'waiting_payment',
                     'waiting_doctor',
-                    'in_consultation'
+                    'in_consultation',
                 ]);
             })
             ->latest()
             ->get();
     }
 
-public function getMovementsProperty()
-{
-    return PatientMovement::with(['visit.patient', 'visit.invoice'])
-        ->whereHas('visit', fn($q) => $q->where('company_id', Auth::user()->company_id))
-        
-        // 🔎 Patient Search Filter
-        ->whereHas('visit.patient', function ($q) {
-            $q->when($this->search, fn($query) => $query->where(function ($sub) {
-                $sub->where('first_name', 'like', '%' . $this->search . '%')
-                    ->orWhere('last_name', 'like', '%' . $this->search . '%')
-                    ->orWhere('patient_number', 'like', '%' . $this->search . '%')
-                    ->orWhere('phone', 'like', '%' . $this->search . '%');
-            }));
-        })
-        
-        // 📅 Date Range Filter
-        ->when($this->dateFrom, fn($query) => $query->whereDate('moved_at', '>=', $this->dateFrom))
-        ->when($this->dateTo, fn($query) => $query->whereDate('moved_at', '<=', $this->dateTo))
-        
-        // 🏥 Department Filter
-        ->when($this->department, fn($query) => $query->where(function ($q) {
-            $q->where('from_department', $this->department)
-              ->orWhere('to_department', $this->department);
-        }))
+    public function getMovementsProperty()
+    {
+        return PatientMovement::with(['visit.patient', 'visit.invoice'])
+            ->whereHas('visit', fn ($q) => $q->where('company_id', Auth::user()->company_id))
 
-        // Only latest movement per visit
-        ->whereIn('id', function ($query) {
-            $query->selectRaw('MAX(id)')
-                ->from('patient_movements')
-                ->groupBy('visit_id');
-        })
-        ->latest('moved_at')
-        ->get();
-}
+            // 🔎 Patient Search Filter
+            ->whereHas('visit.patient', function ($q) {
+                $q->when($this->search, fn ($query) => $query->where(function ($sub) {
+                    $sub->where('first_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('last_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('patient_number', 'like', '%'.$this->search.'%')
+                        ->orWhere('phone', 'like', '%'.$this->search.'%');
+                }));
+            })
+
+            // 📅 Date Range Filter
+            ->when($this->dateFrom, fn ($query) => $query->whereDate('moved_at', '>=', $this->dateFrom))
+            ->when($this->dateTo, fn ($query) => $query->whereDate('moved_at', '<=', $this->dateTo))
+
+            // 🏥 Department Filter
+            ->when($this->department, fn ($query) => $query->where(function ($q) {
+                $q->where('from_department', $this->department)
+                    ->orWhere('to_department', $this->department);
+            }))
+
+            // Only latest movement per visit
+            ->whereIn('id', function ($query) {
+                $query->selectRaw('MAX(id)')
+                    ->from('patient_movements')
+                    ->groupBy('visit_id');
+            })
+            ->latest('moved_at')
+            ->get();
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -98,23 +109,23 @@ public function getMovementsProperty()
     {
         $this->validate([
             'first_name' => 'required|string|max:255',
-            'last_name'  => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
         ]);
 
         $patient = Patient::create([
-            'company_id'     => Auth::user()->company_id,
-            'patient_number' => 'MRN-' . now()->format('YmdHis') . '-' . rand(100,999),
-            'first_name'     => $this->first_name,
-            'last_name'      => $this->last_name,
-            'phone'          => $this->phone,
-            'gender'         => $this->gender,
-            'dob'            => $this->dob,
-            'created_by'     => Auth::id(),
+            'company_id' => Auth::user()->company_id,
+            'patient_number' => 'MRN-'.now()->format('YmdHis').'-'.rand(100, 999),
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'phone' => $this->phone,
+            'gender' => $this->gender,
+            'dob' => $this->dob,
+            'created_by' => Auth::id(),
         ]);
 
         $this->selectedPatient = $patient->id;
 
-        $this->reset(['first_name','last_name','phone','gender','dob']);
+        $this->reset(['first_name', 'last_name', 'phone', 'gender', 'dob']);
 
         $this->dispatch('close-modal', id: 'create-patient-modal');
 
@@ -127,99 +138,99 @@ public function getMovementsProperty()
     |--------------------------------------------------------------------------
     */
 
- public function registerVisit()
-{
-    $this->validate([
-        'selectedPatient' => 'required|exists:patients,id',
-        'patientType'     => 'required|in:cash,insurance',
-        'visitType'       => 'required|in:opd,short_stay',
-    ]);
+    public function registerVisit()
+    {
+        $this->validate([
+            'selectedPatient' => 'required|exists:patients,id',
+            'patientType' => 'required|in:cash,insurance',
+            'visitType' => 'required|in:opd,short_stay',
+        ]);
 
-    $companyId = Auth::user()->company_id;
+        $companyId = Auth::user()->company_id;
 
-    try {
+        try {
 
-        DB::transaction(function () use ($companyId) {
+            DB::transaction(function () use ($companyId) {
 
-            // 🚫 Prevent duplicate active visit
-            $existingVisit = Visit::where('company_id', $companyId)
-                ->where('patient_id', $this->selectedPatient)
-                ->whereIn('status', [
-                    'waiting_payment',
-                    'waiting_doctor',
-                    'consultation'
-                ])
-                ->lockForUpdate() // 🔐 Prevent race condition
-                ->first();
+                // 🚫 Prevent duplicate active visit
+                $existingVisit = Visit::where('company_id', $companyId)
+                    ->where('patient_id', $this->selectedPatient)
+                    ->whereIn('status', [
+                        'waiting_payment',
+                        'waiting_doctor',
+                        'consultation',
+                    ])
+                    ->lockForUpdate() // 🔐 Prevent race condition
+                    ->first();
 
                 // dd($existingVisit);
 
-            if ($existingVisit) {
-                throw new \Exception('Patient already has an active visit.');
-            }
+                if ($existingVisit) {
+                    throw new \Exception('Patient already has an active visit.');
+                }
 
-            $registrationFee = RegistrationFee::where('company_id', $companyId)
-                ->where('patient_type', $this->patientType)
-                ->firstOrFail();
+                $registrationFee = RegistrationFee::where('company_id', $companyId)
+                    ->where('patient_type', $this->patientType)
+                    ->firstOrFail();
 
-            $amount = $registrationFee->amount;
+                $amount = $registrationFee->amount;
 
-            // dd($amount);
+                // dd($amount);
 
-            $initialStatus = $this->patientType === 'cash'
-                ? 'waiting_payment'
-                : 'waiting_doctor';
+                $initialStatus = $this->patientType === 'cash'
+                    ? 'waiting_payment'
+                    : 'waiting_doctor';
 
-            $initialDepartment = $this->patientType === 'cash'
-                ? 'billing'
-                : 'doctor';
+                $initialDepartment = $this->patientType === 'cash'
+                    ? 'billing'
+                    : 'doctor';
 
-            $visit = Visit::create([
-                'company_id'         => $companyId,
-                'patient_id'         => $this->selectedPatient,
-                'visit_type'         => $this->visitType,
-                'status'             => $initialStatus,
-                'current_department' => $initialDepartment,
-                'created_by'         => Auth::id(),
-            ]);
+                $visit = Visit::create([
+                    'company_id' => $companyId,
+                    'patient_id' => $this->selectedPatient,
+                    'visit_type' => $this->visitType,
+                    'status' => $initialStatus,
+                    'current_department' => $initialDepartment,
+                    'created_by' => Auth::id(),
+                ]);
 
-            $invoice = Invoice::create([
-                'company_id'       => $companyId,
-                'visit_id'         => $visit->id,
-                'total'            => $amount,
-                'insurance_amount' => $this->patientType === 'insurance' ? $amount : 0,
-                'patient_amount'   => $this->patientType === 'cash' ? $amount : 0,
-                'status'           => $this->patientType === 'cash'
-                                        ? 'unpaid'
-                                        : 'covered_by_insurance',
-            ]);
+                $invoice = Invoice::create([
+                    'company_id' => $companyId,
+                    'visit_id' => $visit->id,
+                    'total' => $amount,
+                    'insurance_amount' => $this->patientType === 'insurance' ? $amount : 0,
+                    'patient_amount' => $this->patientType === 'cash' ? $amount : 0,
+                    'status' => $this->patientType === 'cash'
+                                            ? 'unpaid'
+                                            : 'covered_by_insurance',
+                ]);
 
-              InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'type'       => 'registration',
-                'description'=> 'Registration Fee',
-                'quantity'   => 1,
-                'unit_price' => $amount,
-                'total'      => $amount,
-            ]);
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'type' => 'registration',
+                    'description' => 'Registration Fee',
+                    'quantity' => 1,
+                    'unit_price' => $amount,
+                    'total' => $amount,
+                ]);
 
-            PatientMovement::create([
-                'visit_id'        => $visit->id,
-                'from_department' => 'registration',
-                'to_department'   => $initialDepartment,
-                'moved_at'        => now(),
-            ]);
-        });
+                PatientMovement::create([
+                    'visit_id' => $visit->id,
+                    'from_department' => 'registration',
+                    'to_department' => $initialDepartment,
+                    'moved_at' => now(),
+                ]);
+            });
 
-        $this->reset(['selectedPatient', 'patientType']);
+            $this->reset(['selectedPatient', 'patientType']);
 
-        session()->flash('message', 'Visit registered successfully.');
+            session()->flash('message', 'Visit registered successfully.');
 
-    } catch (\Exception $e) {
+        } catch (\Exception $e) {
 
-        session()->flash('error', $e->getMessage());
+            session()->flash('error', $e->getMessage());
+        }
     }
-}
 
     /*
     |--------------------------------------------------------------------------
@@ -238,48 +249,48 @@ public function getMovementsProperty()
     }
 
     public function exportExcel()
-{
-    return Excel::download(
-        new MovementsExport($this->search, $this->dateFrom, $this->dateTo),
-        'patient-movements.xlsx'
-    );
-}
-
-public function exportPdf()
-{
-    $movements = $this->movements;
-
-    $user = auth()->user();
-    $company = $user->company ?? null;
-
-    $html = view('exports.movements-pdf', [
-        'movements' => $movements
-    ])->render();
-
-    $mpdf = new Mpdf([
-        'format' => 'A4',
-        'margin_left' => 10,
-        'margin_right' => 10,
-        'margin_top' => 15,
-        'margin_bottom' => 15,
-    ]);
-
-    // ✅ Professional Watermark (Low Opacity)
-    if ($company) {
-        $mpdf->SetWatermarkText(
-            strtoupper($company->name),
-            0.05 // LOW opacity (0.03 - 0.08 ideal)
+    {
+        return Excel::download(
+            new MovementsExport($this->search, $this->dateFrom, $this->dateTo),
+            'patient-movements.xlsx'
         );
-
-        $mpdf->showWatermarkText = true;
     }
 
-    $mpdf->WriteHTML($html);
+    public function exportPdf()
+    {
+        $movements = $this->movements;
 
-    return response()->streamDownload(function () use ($mpdf) {
-        echo $mpdf->Output('', 'S');
-    }, 'patient-movements.pdf');
-}
+        $user = auth()->user();
+        $company = $user->company ?? null;
+
+        $html = view('exports.movements-pdf', [
+            'movements' => $movements,
+        ])->render();
+
+        $mpdf = new Mpdf([
+            'format' => 'A4',
+            'margin_left' => 10,
+            'margin_right' => 10,
+            'margin_top' => 15,
+            'margin_bottom' => 15,
+        ]);
+
+        // ✅ Professional Watermark (Low Opacity)
+        if ($company) {
+            $mpdf->SetWatermarkText(
+                strtoupper($company->name),
+                0.05 // LOW opacity (0.03 - 0.08 ideal)
+            );
+
+            $mpdf->showWatermarkText = true;
+        }
+
+        $mpdf->WriteHTML($html);
+
+        return response()->streamDownload(function () use ($mpdf) {
+            echo $mpdf->Output('', 'S');
+        }, 'patient-movements.pdf');
+    }
 };
 ?>
 
@@ -409,14 +420,18 @@ public function exportPdf()
             </x-ui.select>
         </x-ui.field>
 
-        <x-ui.field>
-            <x-ui.label>Patient Type</x-ui.label>
-            <select wire:model="patientType" class="w-full border rounded p-2">
-                <option value="">Select patient type</option>
-                <option value="cash">Cash</option>
-                <option value="insurance">Insurance</option>
-            </select>
-        </x-ui.field>
+           <x-ui.field>
+                <x-ui.label>Patient Type</x-ui.label>
+                <x-ui.select
+                    placeholder="Select patient type..."
+                    icon="user"
+                    searchable
+                     wire:model="patientType"
+                >
+                    <x-ui.select.option value="cash">CASH PATIENT</x-ui.select.option>
+                    <x-ui.select.option value="insurance">INSURANCE PATIENT</x-ui.select.option>
+                </x-ui.select>
+            </x-ui.field>
 
     </div>
 
@@ -437,145 +452,145 @@ public function exportPdf()
     {{-- =============================== --}}
     {{-- MOVEMENT TABLE --}}
     {{-- =============================== --}}
-  <div class="mt-8">
+    <div class="mt-8 space-y-6">
 
-    {{-- ===================================== --}}
-    {{-- FILTER CARD --}}
-    {{-- ===================================== --}}
-    <div class="bg-white border rounded-xl shadow-sm p-5 mb-6">
+        {{-- ===================================== --}}
+        {{-- FILTER CARD --}}
+        {{-- ===================================== --}}
+        <div class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm p-6 transition-all">
 
-    <div class="flex gap-2">
+            <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                <x-ui.button
+                    size="sm"
+                    wire:click="exportExcel"
+                    class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white flex items-center gap-2"
+                >
+                    <span>📊</span>
+                    Export Excel
+                </x-ui.button>
 
-    <x-ui.button
-        size="sm"
-        wire:click="exportExcel"
-        class="bg-green-600 text-white hover:bg-green-700"
-    >
-        Export Excel
-    </x-ui.button>
-
-    <x-ui.button
-        size="sm"
-        wire:click="exportPdf"
-        class="bg-red-600 text-white hover:bg-red-700"
-    >
-        Export PDF
-    </x-ui.button>
-
-</div>
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-
-            {{-- Left Side: Search --}}
-            <div class="w-full lg:w-1/3">
-                <label class="block text-sm font-semibold text-gray-600 mb-1">
-                    Search Patient
-                </label>
-
-                <x-ui.input
-                    wire:model.live.debounce.500ms="search"
-                    placeholder="Search by name, MRN, or phone..."
-                    icon="magnifying-glass"
-                />
+                <x-ui.button
+                    size="sm"
+                    wire:click="exportPdf"
+                    class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white flex items-center gap-2"
+                >
+                    <span>📄</span>
+                    Export PDF
+                </x-ui.button>
             </div>
 
-            {{-- Right Side: Date Filters --}}
-            <div class="flex flex-col sm:flex-row gap-4">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
 
-                {{-- From Date --}}
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">
-                        From
+                {{-- Left Side: Search --}}
+                <div class="w-full lg:w-1/3">
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
+                        🔍 Search Patient
                     </label>
-                    <input
-                        type="date"
-                        wire:model.live="dateFrom"
-                        class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+
+                    <x-ui.input
+                        wire:model.live.debounce.500ms="search"
+                        placeholder="Name, MRN, or phone..."
+                        icon="magnifying-glass"
+                        class="bg-white dark:bg-slate-700"
                     />
                 </div>
 
-                {{-- To Date --}}
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">
-                        To
-                    </label>
-                    <input
-                        type="date"
-                        wire:model.live="dateTo"
-                        class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                    />
-                </div>
+                {{-- Right Side: Filters --}}
+                <div class="flex flex-col sm:flex-row gap-4">
 
-                {{-- Buttons --}}
-                <div class="flex items-end gap-2">
+                    {{-- From Date --}}
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
+                            📅 From
+                        </label>
+                        <input
+                            type="date"
+                            wire:model.live="dateFrom"
+                            class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        />
+                    </div>
 
-                    <x-ui.button
-                        size="sm"
-                        variant="outline"
-                        wire:click="$set('dateFrom', '{{ now()->toDateString() }}'); $set('dateTo', '{{ now()->toDateString() }}')"
-                    >
-                        Today
-                    </x-ui.button>
+                    {{-- To Date --}}
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
+                            📅 To
+                        </label>
+                        <input
+                            type="date"
+                            wire:model.live="dateTo"
+                            class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        />
+                    </div>
 
-                    @if($search || $dateFrom || $dateTo)
+                    {{-- Department --}}
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
+                            🏥 Department
+                        </label>
+                        <select
+                            wire:model.live="department"
+                            class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        >
+                            <option value="">All Departments</option>
+                            <option value="registration">Registration</option>
+                            <option value="billing">Billing</option>
+                            <option value="doctor">Doctor</option>
+                            <option value="lab">Lab</option>
+                        </select>
+                    </div>
+
+                    {{-- Filter Buttons --}}
+                    <div class="flex items-end gap-2">
                         <x-ui.button
                             size="sm"
                             variant="outline"
-                            class="text-red-600 border-red-300 hover:bg-red-50"
-                            wire:click="
-                                $set('search','');
-                                $set('dateFrom', null);
-                                $set('dateTo', null);
-                            "
+                            wire:click="$set('dateFrom', '{{ now()->toDateString() }}'); $set('dateTo', '{{ now()->toDateString() }}')"
+                            class="whitespace-nowrap"
                         >
-                            Clear
+                            Today
                         </x-ui.button>
-                    @endif
 
+                        @if($search || $dateFrom || $dateTo)
+                            <x-ui.button
+                                size="sm"
+                                variant="outline"
+                                class="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 whitespace-nowrap"
+                                wire:click="$set('search',''); $set('dateFrom', null); $set('dateTo', null);"
+                            >
+                                ✕ Clear
+                            </x-ui.button>
+                        @endif
+                    </div>
                 </div>
-<div>
-    <label class="block text-sm font-semibold text-gray-600 mb-1">
-        Department
-    </label>
-    <select
-        wire:model.live="department"
-        class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-    >
-        <option value="">All</option>
-        <option value="registration">Registration</option>
-        <option value="billing">Billing</option>
-        <option value="doctor">Doctor</option>
-        <option value="lab">Lab</option>
-    </select>
-</div>
+
             </div>
 
         </div>
 
-    </div>
 
+        {{-- ===================================== --}}
+        {{-- TABLE CARD --}}
+        {{-- ===================================== --}}
+    <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-lg overflow-hidden">
 
-    {{-- ===================================== --}}
-    {{-- TABLE CARD --}}
-    {{-- ===================================== --}}
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
-
+        {{-- Table Header --}}
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full">
 
-                <thead class="bg-gray-50 border-b">
+                <thead class="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b border-gray-200 dark:border-slate-800">
                     <tr>
-                        <th class="p-4 text-left font-semibold text-gray-600">Patient</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">Type</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">Amount</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">From</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">To</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">Time</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">Status</th>
-                        <th class="p-4 text-left font-semibold text-gray-600">History</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Patient</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">From</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">To</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Time</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Action</th>
                     </tr>
                 </thead>
 
-                <tbody class="divide-y">
+                <tbody class="divide-y divide-gray-200 dark:divide-slate-800">
 
                     @forelse($this->movements as $movement)
 
@@ -584,68 +599,133 @@ public function exportPdf()
                             $isCash = optional($invoice)->patient_amount > 0;
                         @endphp
 
-                        <tr class="hover:bg-gray-50 transition">
+                        <tr class="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors duration-200">
 
-                            <td class="p-4 font-medium text-gray-800 uppercase">
-                                {{ $movement->visit->patient->first_name }}
-                                {{ $movement->visit->patient->last_name }}
+                            {{-- Patient Name --}}
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm">
+                                        {{ strtoupper(substr($movement->visit->patient->first_name, 0, 1) . substr($movement->visit->patient->last_name, 0, 1)) }}
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-gray-900 dark:text-white">
+                                            {{ $movement->visit->patient->first_name }} {{ $movement->visit->patient->last_name }}
+                                        </p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                                            ID: #{{ $movement->visit->patient->id }}
+                                        </p>
+                                    </div>
+                                </div>
                             </td>
 
-                <td class="p-4">
-    <x-ui.badge 
-        :icon="$isCash ? 'banknotes' : 'shield-check'" 
-        :color="$isCash ? 'blue' : 'purple'"
-    >
-        {{ $isCash ? 'Cash' : 'Insurance' }}
-    </x-ui.badge>
-</td>
-                            <td class="p-4 font-semibold text-gray-700">
-                                @if($isCash)
-                                    {{ number_format($invoice->total ?? 0, 2) }}
-                                @else
-                                    <span class="text-green-600 font-medium">Covered</span>
-                                @endif
-                            </td>
-
-                            <td class="p-4  text-gray-600 uppercase">
-                                {{ $movement->from_department }}
-                            </td>
-
-                            <td class="p-4  text-gray-600 uppercase">
-                                {{ $movement->to_department }}
-                            </td>
-
-                            <td class="p-4 text-gray-500">
-                                {{ \Carbon\Carbon::parse($movement->moved_at)->format('d M Y H:i') }}
-                            </td>
-
-                            <td class="p-4">
-                                @if($movement->to_department === 'doctor')
-                                    🩺 <span class="text-blue-600 font-medium">Doctor</span>
-                                @elseif($movement->to_department === 'lab')
-                                    🧪 <span class="text-purple-600 font-medium">Lab</span>
-                                @elseif($movement->to_department === 'billing')
-                                    💰 <span class="text-yellow-600 font-medium">Billing</span>
-                                @else
-                                    🔄 <span class="text-gray-600">Moved</span>
-                                @endif
-                            </td>
-
-                            <td class="p-4">
-                                <x-ui.button
-                                    size="sm"
-                                    wire:click="viewMovement({{ $movement->visit_id }})"
+                            {{-- Payment Type --}}
+                            <td class="px-6 py-5">
+                                <x-ui.badge
+                                    :icon="$isCash ? 'banknotes' : 'shield-check'"
+                                    :color="$isCash ? 'blue' : 'emerald'"
                                 >
-                                    View
-                                </x-ui.button>
+                                    {{ $isCash ? 'Cash' : 'Insurance' }}
+                                </x-ui.badge>
+                            </td>
+
+                            {{-- Amount --}}
+                            <td class="px-6 py-5">
+                                <div class="font-bold">
+                                    @if($isCash)
+                                        <span class="text-gray-900 dark:text-white">TSH {{ number_format($invoice->total ?? 0, 0) }}</span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                                            ✓ Covered
+                                        </span>
+                                    @endif
+                                </div>
+                            </td>
+
+                            {{-- From Department --}}
+                            <td class="px-6 py-5">
+                                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 text-xs font-semibold uppercase">
+                                    @if($movement->from_department === 'registration')
+                                        📝
+                                    @elseif($movement->from_department === 'doctor')
+                                        👨‍⚕️
+                                    @elseif($movement->from_department === 'lab')
+                                        🧪
+                                    @elseif($movement->from_department === 'billing')
+                                        💰
+                                    @else
+                                        📍
+                                    @endif
+                                    {{ $movement->from_department }}
+                                </span>
+                            </td>
+
+                            {{-- To Department --}}
+                            <td class="px-6 py-5">
+                                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg
+                                    @if($movement->to_department === 'doctor')
+                                        bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                                    @elseif($movement->to_department === 'lab')
+                                        bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300
+                                    @elseif($movement->to_department === 'billing')
+                                        bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300
+                                    @else
+                                        bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300
+                                    @endif
+                                    text-xs font-semibold uppercase">
+                                    @if($movement->to_department === 'doctor')
+                                        🩺
+                                    @elseif($movement->to_department === 'lab')
+                                        🧪
+                                    @elseif($movement->to_department === 'billing')
+                                        💳
+                                    @else
+                                        ➜
+                                    @endif
+                                    {{ $movement->to_department }}
+                                </span>
+                            </td>
+
+                            {{-- Time --}}
+                            <td class="px-6 py-5">
+                                <div class="text-sm">
+                                    <p class="font-semibold text-gray-900 dark:text-white">
+                                        {{ \Carbon\Carbon::parse($movement->moved_at)->format('d M Y') }}
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ \Carbon\Carbon::parse($movement->moved_at)->format('H:i') }}
+                                    </p>
+                                </div>
+                            </td>
+
+                            {{-- Status --}}
+                            <td class="px-6 py-5">
+                                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-bold">
+                                    <span class="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    Active
+                                </span>
+                            </td>
+
+                            {{-- Action --}}
+                            <td class="px-6 py-5 text-center">
+                                <button
+                                    wire:click="viewMovement({{ $movement->visit_id }})"
+                                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors duration-200"
+                                >
+                                    <span>📋</span>
+                                    View Movements
+                                </button>
                             </td>
 
                         </tr>
 
                     @empty
                         <tr>
-                            <td colspan="8" class="p-8 text-center text-gray-500">
-                                No patient movements found.
+                            <td colspan="8" class="px-6 py-12">
+                                <div class="flex flex-col items-center justify-center text-center">
+                                    <div class="text-4xl mb-3">📊</div>
+                                    <p class="text-gray-500 dark:text-gray-400 font-medium text-lg">No patient movements found</p>
+                                    <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Try adjusting your filters or register a new patient</p>
+                                </div>
                             </td>
                         </tr>
                     @endforelse
@@ -655,15 +735,17 @@ public function exportPdf()
             </table>
         </div>
 
-    </div>
-
 </div>
+
     {{-- =============================== --}}
     {{-- SUCCESS MESSAGE --}}
     {{-- =============================== --}}
     @if(session()->has('message'))
-        <div class="p-4 bg-blue-50 text-blue-700 rounded">
-            {{ session('message') }}
+        <div class="mt-6 p-4 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-emerald-700 dark:text-emerald-300 shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">✓</span>
+                <span class="font-medium">{{ session('message') }}</span>
+            </div>
         </div>
     @endif
 

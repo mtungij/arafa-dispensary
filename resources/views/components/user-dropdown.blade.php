@@ -22,6 +22,13 @@
 
         <x-ui.dropdown.separator />
 
+               @if($user->role === 'admin' && $user->company)
+            <x-ui.dropdown.separator />
+            <x-ui.dropdown.item x-on:click="$dispatch('open-modal', {id: 'edit-company-modal'})">
+                ⚙️ Update Company Details
+            </x-ui.dropdown.item>
+        @endif
+
         <x-ui.dropdown.item :href="route('settings.account')" wire:navigate.live>
             Account
         </x-ui.dropdown.item>
@@ -45,3 +52,6 @@
 
     </x-slot:menu>
 </x-ui.dropdown>
+@if($user->role === 'admin' && $user->company)
+    <livewire:company.edit-details :company_id="$user->company->id" />
+@endif

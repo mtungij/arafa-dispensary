@@ -1,5 +1,5 @@
 <x-layouts.base>
-    <div class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-neutral-50 px-4 py-12 dark:bg-neutral-950 sm:px-6 lg:px-8">
+    <div class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12 sm:px-6 lg:px-8" style="background-image: url('{{ asset('images/back1.jpg') }}'); background-size: cover; background-position: center; background-attachment: fixed;">
 
         {{-- Ambient glow background --}}
         <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
